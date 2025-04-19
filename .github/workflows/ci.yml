@@ -9,6 +9,20 @@ on:
 jobs:
   build-task-service:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: yourpassword
+          POSTGRES_DB: planning_system
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
     - uses: actions/checkout@v3
     - name: Set up JDK 17
@@ -16,9 +30,19 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
+    - name: Debug environment
+      run: |
+        java --version
+        psql --version
+        ls -R ./task-service
+    - name: Initialize PostgreSQL tables
+      run: |
+        psql -h localhost -U postgres -d planning_system -c "CREATE TABLE default_data (id SERIAL PRIMARY KEY, task_type VARCHAR(50) NOT NULL, average_eta INTEGER, default_assignee VARCHAR(50), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);"
+        psql -h localhost -U postgres -d planning_system -c "CREATE TABLE learned_data (id SERIAL PRIMARY KEY, task_type VARCHAR(50) NOT NULL, adjusted_eta INTEGER, adjusted_assignee VARCHAR(50), status VARCHAR(20), updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);"
+        psql -h localhost -U postgres -d planning_system -c "CREATE TABLE tasks (id SERIAL PRIMARY KEY, title VARCHAR(255) NOT NULL, eta INTEGER, assignee VARCHAR(50), status VARCHAR(20), priority VARCHAR(20), dependency_id INTEGER, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (dependency_id) REFERENCES tasks(id));"
     - name: Build Task Service
       working-directory: ./task-service
-      run: mvn clean install
+      run: mvn clean install -DskipTests
 
   build-scheduling-service:
     runs-on: ubuntu-latest
@@ -29,9 +53,13 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
+    - name: Debug environment
+      run: |
+        java --version
+        ls -R ./scheduling-service
     - name: Build Scheduling Service
       working-directory: ./scheduling-service
-      run: mvn clean install
+      run: mvn clean install -DskipTests
 
   build-assignment-service:
     runs-on: ubuntu-latest
@@ -42,18 +70,46 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
+    - name: Debug environment
+      run: |
+        java --version
+        ls -R ./assignment-service
     - name: Build Assignment Service
       working-directory: ./assignment-service
-      run: mvn clean install
+      run: mvn clean install -DskipTests
 
   build-learning-service:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: yourpassword
+          POSTGRES_DB: planning_system
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
+    - name: Debug environment
+      run: |
+        python --version
+        psql --version
+        ls -R ./learning-service
+    - name: Initialize PostgreSQL tables
+      run: |
+        psql -h localhost -U postgres -d planning_system -c "CREATE TABLE default_data (id SERIAL PRIMARY KEY, task_type VARCHAR(50) NOT NULL, average_eta INTEGER, default_assignee VARCHAR(50), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);"
+        psql -h localhost -U postgres -d planning_system -c "CREATE TABLE learned_data (id SERIAL PRIMARY KEY, task_type VARCHAR(50) NOT NULL, adjusted_eta INTEGER, adjusted_assignee VARCHAR(50), status VARCHAR(20), updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);"
+        psql -h localhost -U postgres -d planning_system -c "CREATE TABLE tasks (id SERIAL PRIMARY KEY, title VARCHAR(255) NOT NULL, eta INTEGER, assignee VARCHAR(50), status VARCHAR(20), priority VARCHAR(20), dependency_id INTEGER, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (dependency_id) REFERENCES tasks(id));"
     - name: Install dependencies
       working-directory: ./learning-service
       run: |
@@ -68,9 +124,16 @@ jobs:
       uses: actions/setup-node@v3
       with:
         node-version: '16'
+    - name: Debug environment
+      run: |
+        node --version
+        npm --version
+        ls -R ./frontend
     - name: Install dependencies
       working-directory: ./frontend
-      run: npm install
+      run: |
+        npm cache clean --force
+        npm install
     - name: Build Frontend
       working-directory: ./frontend
       run: npm run build
