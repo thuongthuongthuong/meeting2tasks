@@ -24,13 +24,14 @@ jobs:
         env:
           ZOOKEEPER_CLIENT_PORT: 2181
           ZOOKEEPER_TICK_TIME: 2000
+          ZOOKEEPER_SERVER_ID: 1
         ports:
           - 2181:2181
         options: >-
-          --health-cmd "echo 'ruok' | nc -w 2 localhost 2181 | grep imok"
+          --health-cmd "echo ruok | nc localhost 2181 | grep imok || exit 1"
           --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          --health-timeout 10s
+          --health-retries 10
       kafka:
         image: confluentinc/cp-kafka:7.3.0
         ports:
@@ -43,11 +44,17 @@ jobs:
         options: >-
           --health-cmd "kafka-topics --list --bootstrap-server kafka:9092"
           --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          --health-timeout 10s
+          --health-retries 10
 
     steps:
     - uses: actions/checkout@v3
+
+    - name: Debug Zookeeper container
+      run: |
+        echo "Zookeeper container logs:"
+        docker ps -a
+        docker logs $(docker ps -q -f ancestor=confluentinc/cp-zookeeper:7.3.0) || echo "No Zookeeper container logs available"
 
     - name: Set up JDK 17
       uses: actions/setup-java@v3
