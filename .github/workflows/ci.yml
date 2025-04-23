@@ -118,6 +118,3 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         # Thêm test nếu cần (ví dụ: pytest)
-
-volumes:
-  zookeeper_data:
