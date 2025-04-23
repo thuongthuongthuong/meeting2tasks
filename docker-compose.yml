@@ -32,7 +32,8 @@ services:
       echo 'Waiting for Kafka to be ready...'
       cub kafka-ready -b kafka:9092 1 120
       kafka-topics --create --topic meeting-notes --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1
-      kafka-topics --create --topic scheduled-tasks --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1
+      kafka-topics --create --topic tasks --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1
+      kafka-topics --create --topic feedback --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1
       echo 'Topics created!'
       "
 
@@ -69,18 +70,18 @@ services:
     ports:
       - "8082:8080"
 
-  assignment-service:
+  ai-model:
     build:
-      context: ./assignment-service
+      context: ./ai-model
       dockerfile: Dockerfile
     depends_on:
       - kafka
       - mongodb
     environment:
-      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/meeting2tasks
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      MONGO_URI: mongodb://mongodb:27017/meeting2tasks
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
-      - "8083:8080"
+      - "8000:8000"
 
 volumes:
   mongodb_data:

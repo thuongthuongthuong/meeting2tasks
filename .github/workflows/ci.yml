@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       mongodb:
-        image: mongo:4.4
+        image: mongo:6.0
         ports:
           - 27017:27017
         options: >-
@@ -65,7 +65,7 @@ jobs:
         java --version
         mvn --version
         echo "MongoDB container logs:"
-        docker logs $(docker ps -q -f ancestor=mongo:4.4)
+        docker logs $(docker ps -q -f ancestor=mongo:6.0)
         echo "Kafka container logs:"
         docker logs $(docker ps -q -f ancestor=confluentinc/cp-kafka:7.3.0)
 
@@ -79,7 +79,14 @@ jobs:
       run: |
         mvn clean install
 
-    - name: Build and Test Assignment Service
-      working-directory: ./assignment-service
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Build and Test AI Model
+      working-directory: ./ai-model
       run: |
-        mvn clean install
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        # Thêm test nếu cần (ví dụ: pytest)
