@@ -26,6 +26,11 @@ jobs:
           ZOOKEEPER_TICK_TIME: 2000
         ports:
           - 2181:2181
+        options: >-
+          --health-cmd "echo 'ruok' | nc -w 2 localhost 2181 | grep imok"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
       kafka:
         image: confluentinc/cp-kafka:7.3.0
         ports:
@@ -35,8 +40,6 @@ jobs:
           KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
           KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
           KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-        depends_on:
-          - zookeeper
         options: >-
           --health-cmd "kafka-topics --list --bootstrap-server kafka:9092"
           --health-interval 10s
@@ -59,6 +62,18 @@ jobs:
         key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
         restore-keys: |
           ${{ runner.os }}-maven-
+
+    - name: Wait for Kafka to be ready
+      run: |
+        echo "Waiting for Kafka to be ready..."
+        for i in {1..30}; do
+          if kafka-topics --list --bootstrap-server kafka:9092; then
+            echo "Kafka is ready!"
+            break
+          fi
+          echo "Kafka not ready yet, retrying ($i/30)..."
+          sleep 5
+        done
 
     - name: Debug environment
       run: |
