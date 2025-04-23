@@ -24,15 +24,18 @@ jobs:
         env:
           ZOOKEEPER_CLIENT_PORT: 2181
           ALLOW_ANONYMOUS_LOGIN: yes
+          ZOOKEEPER_TICK_TIME: 2000
+          ZOOKEEPER_INIT_LIMIT: 15
+          ZOOKEEPER_SYNC_LIMIT: 5
         ports:
           - 2181:2181
         volumes:
           - zookeeper_data:/bitnami/zookeeper
         options: >-
-          --health-cmd "echo ruok | nc localhost 2181 | grep imok || exit 1"
+          --health-cmd "sh -c 'netstat -an | grep 2181 || exit 1'"
           --health-interval 10s
           --health-timeout 15s
-          --health-retries 20
+          --health-retries 30
       kafka:
         image: confluentinc/cp-kafka:7.3.0
         ports:
@@ -46,7 +49,7 @@ jobs:
           --health-cmd "kafka-topics --list --bootstrap-server kafka:9092"
           --health-interval 10s
           --health-timeout 15s
-          --health-retries 20
+          --health-retries 30
 
     steps:
     - uses: actions/checkout@v3
@@ -56,6 +59,8 @@ jobs:
         echo "Zookeeper container logs:"
         docker ps -a
         docker logs $(docker ps -q -f ancestor=bitnami/zookeeper:3.8) || echo "No Zookeeper container logs available"
+        echo "Checking if port 2181 is listening:"
+        docker exec $(docker ps -q -f ancestor=bitnami/zookeeper:3.8) netstat -an | grep 2181 || echo "Port 2181 not listening"
 
     - name: Debug MongoDB container
       run: |
