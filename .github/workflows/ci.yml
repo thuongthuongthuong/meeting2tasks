@@ -26,11 +26,13 @@ jobs:
           ALLOW_ANONYMOUS_LOGIN: yes
         ports:
           - 2181:2181
+        volumes:
+          - zookeeper_data:/bitnami/zookeeper
         options: >-
           --health-cmd "echo ruok | nc localhost 2181 | grep imok || exit 1"
           --health-interval 10s
-          --health-timeout 10s
-          --health-retries 15
+          --health-timeout 15s
+          --health-retries 20
       kafka:
         image: confluentinc/cp-kafka:7.3.0
         ports:
@@ -43,8 +45,8 @@ jobs:
         options: >-
           --health-cmd "kafka-topics --list --bootstrap-server kafka:9092"
           --health-interval 10s
-          --health-timeout 10s
-          --health-retries 15
+          --health-timeout 15s
+          --health-retries 20
 
     steps:
     - uses: actions/checkout@v3
@@ -116,3 +118,6 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         # Thêm test nếu cần (ví dụ: pytest)
+
+volumes:
+  zookeeper_data:
