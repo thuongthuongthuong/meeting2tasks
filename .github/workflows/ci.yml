@@ -66,11 +66,29 @@ jobs:
       run: |
         mvn clean install
 
+
+    - name: Debug OPENAI_API_KEY
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      run: |
+        if [ -z "$OPENAI_API_KEY" ]; then
+          echo "OPENAI_API_KEY is not set or empty"
+          exit 1
+        else
+          echo "OPENAI_API_KEY is set (value not shown for security)"
+        fi
+
     - name: Test AI Service
       working-directory: ./ai-service
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       run: |
         uvicorn main:app --host 0.0.0.0 --port 8000 &
-        sleep 5  # Chờ server khởi động
+        # Chờ server khởi động, thử tối đa 30 giây
+        for i in {1..30}; do
+          curl --fail http://localhost:8000/docs && break || sleep 1
+        done
+        # Gửi request thử nghiệm
         curl -X POST http://localhost:8000/extract-tasks \
           -H "Content-Type: application/json" \
           -d '{"user_input": "Test task generation", "project_id": null}' || exit 1
