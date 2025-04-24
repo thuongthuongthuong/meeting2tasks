@@ -66,11 +66,6 @@ jobs:
       run: |
         mvn clean install
 
-    - name: Build and Test Assignment Service
-      working-directory: ./assignment-service
-      run: |
-        mvn clean install
-
     - name: Test AI Service
       working-directory: ./ai-service
       run: |
