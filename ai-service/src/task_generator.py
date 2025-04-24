@@ -2,16 +2,17 @@ import os
 import json
 import logging
 from openai import OpenAI
-from dotenv import load_dotenv
 
 # Thiết lập logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load environment variables from .env
-load_dotenv()
+# Lấy API key từ biến môi trường
+api_key = os.getenv("OPENAI_API_KEY")
+if not api_key:
+    raise ValueError("OPENAI_API_KEY environment variable is not set")
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = OpenAI(api_key=api_key)
 
 def strip_markdown_fences(content: str) -> str:
     """Loại bỏ định dạng Markdown (nếu có) từ nội dung."""
