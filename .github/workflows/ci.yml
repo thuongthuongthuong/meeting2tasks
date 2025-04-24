@@ -45,12 +45,7 @@ jobs:
     - name: Install Python dependencies for ai-service
       working-directory: ./ai-service
       run: |
-        # Xóa cache của pip để đảm bảo cài đặt phiên bản mới
-        pip cache purge
-        # Cài đặt dependencies với --force-reinstall để ép cài đặt phiên bản chính xác
-        pip install --force-reinstall -r requirements.txt
-        # Kiểm tra phiên bản openai đã cài đặt
-        pip show openai
+        pip install -r requirements.txt
 
     - name: Debug environment
       run: |
@@ -72,13 +67,21 @@ jobs:
         mvn clean install
 
 
+    - name: Debug OPENAI_API_KEY
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      run: |
+        if [ -z "$OPENAI_API_KEY" ]; then
+          echo "OPENAI_API_KEY is not set or empty"
+          exit 1
+        else
+          echo "OPENAI_API_KEY is set (value not shown for security)"
+        fi
+
     - name: Test AI Service
       working-directory: ./ai-service
       env:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        # Vô hiệu hóa proxy trong môi trường CI
-        http_proxy: ""
-        https_proxy: ""
       run: |
         uvicorn main:app --host 0.0.0.0 --port 8000 &
         # Chờ server khởi động, thử tối đa 30 giây
