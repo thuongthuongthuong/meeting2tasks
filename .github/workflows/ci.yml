@@ -11,22 +11,17 @@ jobs:
     runs-on: ubuntu-latest
     services:
       mongodb:
-        image: mongo:6.0
+        image: mongo:4.4
         ports:
           - 27017:27017
         options: >-
-          --health-cmd "mongosh --host localhost --port 27017 --eval 'db.adminCommand({ping:1})'"
+          --health-cmd "mongo --eval 'db.adminCommand({ping:1})'"
           --health-interval 10s
-          --health-timeout 10s
-          --health-retries 15
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
     - uses: actions/checkout@v3
-
-    - name: Debug MongoDB container
-      run: |
-        echo "MongoDB container logs:"
-        docker logs $(docker ps -q -f ancestor=mongo:6.0) || echo "No MongoDB container logs available"
 
     - name: Set up JDK 17
       uses: actions/setup-java@v3
@@ -42,6 +37,25 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-maven-
 
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install Python dependencies for ai-service
+      working-directory: ./ai-service
+      run: |
+        pip install -r requirements.txt
+
+    - name: Debug environment
+      run: |
+        java --version
+        mvn --version
+        python --version
+        pip --version
+        echo "MongoDB container logs:"
+        docker logs $(docker ps -q -f ancestor=mongo:4.4)
+
     - name: Build and Test Task Service
       working-directory: ./task-service
       run: |
@@ -52,14 +66,16 @@ jobs:
       run: |
         mvn clean install
 
-    - name: Set up Python 3.9
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-
-    - name: Build and Test AI Model
-      working-directory: ./ai-model
+    - name: Build and Test Assignment Service
+      working-directory: ./assignment-service
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        # Thêm test nếu cần (ví dụ: pytest)
+        mvn clean install
+
+    - name: Test AI Service
+      working-directory: ./ai-service
+      run: |
+        uvicorn main:app --host 0.0.0.0 --port 8000 &
+        sleep 5  # Chờ server khởi động
+        curl -X POST http://localhost:8000/extract-tasks \
+          -H "Content-Type: application/json" \
+          -d '{"user_input": "Test task generation", "project_id": null}' || exit 1

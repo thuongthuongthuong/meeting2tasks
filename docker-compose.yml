@@ -1,42 +1,6 @@
+version: '3.8'
+
 services:
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.3.0
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - "2181:2181"
-
-  kafka:
-    image: confluentinc/cp-kafka:7.3.0
-    depends_on:
-      - zookeeper
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:9093
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    ports:
-      - "9092:9092"
-      - "9093:9093"
-
-  kafka-init:
-    image: confluentinc/cp-kafka:7.3.0
-    depends_on:
-      - kafka
-    entrypoint: [ '/bin/sh', '-c' ]
-    command: |
-      "
-      echo 'Waiting for Kafka to be ready...'
-      cub kafka-ready -b kafka:9092 1 120
-      kafka-topics --create --topic meeting-notes --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1
-      kafka-topics --create --topic tasks --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1
-      kafka-topics --create --topic feedback --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1
-      echo 'Topics created!'
-      "
-
   mongodb:
     image: mongo:6.0
     ports:
@@ -49,11 +13,10 @@ services:
       context: ./task-service
       dockerfile: Dockerfile
     depends_on:
-      - kafka
       - mongodb
     environment:
       SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/meeting2tasks
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AI_MODEL_URL: http://ai-service:8000/extract-tasks
     ports:
       - "8081:8080"
 
@@ -62,24 +25,31 @@ services:
       context: ./scheduling-service
       dockerfile: Dockerfile
     depends_on:
-      - kafka
       - mongodb
+      - task-service
     environment:
       SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/meeting2tasks
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      TASK_SERVICE_URL: http://task-service:8080/api/tasks
     ports:
       - "8082:8080"
 
-  ai-model:
+  assignment-service:
     build:
-      context: ./ai-model
+      context: ./assignment-service
       dockerfile: Dockerfile
     depends_on:
-      - kafka
       - mongodb
     environment:
-      MONGO_URI: mongodb://mongodb:27017/meeting2tasks
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/meeting2tasks
+    ports:
+      - "8083:8080"
+
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
     ports:
       - "8000:8000"
 
