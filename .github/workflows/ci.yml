@@ -77,8 +77,6 @@ jobs:
       env:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         # Vô hiệu hóa proxy trong môi trường CI
-        HTTP_PROXY: ""
-        HTTPS_PROXY: ""
         http_proxy: ""
         https_proxy: ""
       run: |
