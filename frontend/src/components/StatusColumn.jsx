@@ -27,7 +27,7 @@ const StatusColumn = ({ title, id, count, tasks, onTaskClick }) => {
               p: 1,
               minHeight: 300,
               transition: 'background-color 0.2s ease',
-              height: 'calc(100vh - 200px)',
+              height: 'calc(100vh - 100px)',
               overflowY: 'auto'
             }}
             ref={provided.innerRef}

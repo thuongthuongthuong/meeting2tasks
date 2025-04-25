@@ -12,11 +12,12 @@ const Loadable = (Component) => {
       </Suspense>
     );
   };
-
   WrappedComponent.displayName = `Loadable(${Component.name || "Component"})`;
 
   return WrappedComponent;
 };
+
+const fakeDelay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default function Router() {
   return useRoutes([
@@ -36,7 +37,18 @@ export default function Router() {
 
 
 
-const Page500 = Loadable(lazy(() => import("../pages/Page500")));
-const Page404 = Loadable(lazy(() => import("../pages/Page404")));
-const Maintenance = Loadable(lazy(() => import("../pages/Maintenance")));
-const Karban = Loadable(lazy(() => import("../pages/Karban")));
+const Page500 = Loadable(
+  lazy(() => fakeDelay(3000).then(() => import("../pages/Page500")))
+);
+
+const Page404 = Loadable(
+  lazy(() => fakeDelay(3000).then(() => import("../pages/Page404")))
+);
+
+const Maintenance = Loadable(
+  lazy(() => fakeDelay(3000).then(() => import("../pages/Maintenance")))
+);
+
+const Karban = Loadable(
+  lazy(() => fakeDelay(3000).then(() => import("../pages/Karban")))
+);

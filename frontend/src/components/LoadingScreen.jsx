@@ -1,4 +1,3 @@
-import React, { useEffect } from 'react';
 import { Box, Typography, Container, useTheme } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import TaskIcon from '@mui/icons-material/Task';
@@ -6,28 +5,20 @@ import BugReportIcon from '@mui/icons-material/BugReport';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 
-const LoadingScreen = ({ isLoading = true, onLoadingComplete }) => {
+const LoadingScreen = () => {
   const theme = useTheme();
 
-  useEffect(() => {
-    if (isLoading) {
-      const timer = setTimeout(() => {
-        if (onLoadingComplete) onLoadingComplete();
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [isLoading, onLoadingComplete]);
-
-  // Card animation variants
   const cardVariants = {
     initial: { opacity: 0, y: 20 },
     animate: index => ({
       opacity: 1,
-      y: 0,
+      y: [0, -8, 0],
       transition: {
-        delay: index * 0.15,
-        duration: 0.5,
-        ease: "easeOut"
+        delay: index * 0.4,
+        duration: 1.5,
+        repeat: Infinity,
+        repeatDelay: 0.5,
+        ease: "easeInOut"
       }
     }),
     exit: index => ({
@@ -62,19 +53,6 @@ const LoadingScreen = ({ isLoading = true, onLoadingComplete }) => {
     }
   };
 
-  // Progress bar animation variants
-  const progressVariants = {
-    initial: { width: "0%" },
-    animate: { 
-      width: "100%", 
-      transition: { 
-        duration: 2.5, 
-        ease: "easeInOut" 
-      } 
-    }
-  };
-
-  // Mock task cards data
   const taskCards = [
     { id: 'Task 1', icon: <TaskIcon sx={{ color: theme.palette.primary.main }} /> },
     { id: 'Bug Fix', icon: <BugReportIcon sx={{ color: theme.palette.error.main }} /> },
@@ -84,7 +62,6 @@ const LoadingScreen = ({ isLoading = true, onLoadingComplete }) => {
 
   return (
     <AnimatePresence>
-      {isLoading && (
         <Box
           component={motion.div}
           initial={{ opacity: 0 }}
@@ -107,11 +84,7 @@ const LoadingScreen = ({ isLoading = true, onLoadingComplete }) => {
           <Container maxWidth="sm">
             {/* Logo */}
             <Box sx={{ textAlign: 'center', mb: 6 }}>
-              <motion.div
-                variants={logoVariants}
-                initial="initial"
-                animate={["animate", "pulse"]}
-              >
+
                 <Typography
                   variant="h3"
                   sx={{
@@ -125,15 +98,6 @@ const LoadingScreen = ({ isLoading = true, onLoadingComplete }) => {
                 >
                   <TaskIcon fontSize="large" /> Task Board
                 </Typography>
-              </motion.div>
-              
-              <Typography 
-                variant="subtitle1" 
-                color="text.secondary"
-                sx={{ mt: 1 }}
-              >
-                Loading your workspace...
-              </Typography>
             </Box>
 
             {/* Task Cards Animation */}
@@ -190,22 +154,6 @@ const LoadingScreen = ({ isLoading = true, onLoadingComplete }) => {
                 </Box>
               ))}
             </Box>
-
-            {/* Progress bar */}
-            <Box sx={{ width: '100%', bgcolor: 'action.hover', borderRadius: 1, height: 6, overflow: 'hidden' }}>
-              <Box 
-                component={motion.div} 
-                variants={progressVariants}
-                initial="initial"
-                animate="animate"
-                sx={{ 
-                  height: '100%', 
-                  borderRadius: 1, 
-                  background: `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
-                }}
-              />
-            </Box>
-
             {/* Loading text */}
             <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
               <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -243,7 +191,6 @@ const LoadingScreen = ({ isLoading = true, onLoadingComplete }) => {
             </Box>
           </Container>
         </Box>
-      )}
     </AnimatePresence>
   );
 };
