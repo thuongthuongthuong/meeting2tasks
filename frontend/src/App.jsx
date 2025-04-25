@@ -2,7 +2,7 @@ import { HelmetProvider } from "react-helmet-async";
 import { BrowserRouter } from "react-router-dom";
 import { SnackbarProvider } from 'notistack';
 import MainRouter from "./routes";
-import ThemeProvider from '@mui/material/styles/ThemeProvider';
+import { ThemeProvider } from '@mui/material/styles';
 import { createTheme } from '@mui/material/styles';
 //---------------------------------------------------
 
