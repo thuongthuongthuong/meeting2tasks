@@ -22,7 +22,10 @@ import {
   DialogActions,
   List,
   ListItem,
-  ListItemText
+  ListItemText,
+  FormControl,
+  InputLabel,
+  Select,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
@@ -35,7 +38,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import { DragDropContext, Droppable } from 'react-beautiful-dnd';
 import StatusColumn from '../components/StatusColumn';
 import { users, mockSprints } from '../mockData/data';
-
+import TaskDialog from '../components/TaskDialog';
 
 function App() {
   const [anchorEl, setAnchorEl] = useState(null);
@@ -47,6 +50,7 @@ function App() {
   const [taskDetailOpen, setTaskDetailOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
 
   useEffect(() => {
     // Update tasks when current sprint changes
@@ -167,6 +171,56 @@ function App() {
     setSprints(updatedSprints);
     setCurrentSprint({ ...currentSprint, tasks: newTasks });
   };
+
+  // New function to add to App.js
+const handleAddTask = (newTask) => {
+  // Generate a unique ID with format TASK-XXX
+  const generateTaskId = () => {
+    const randomId = Math.floor(1000 + Math.random() * 9000).toString().substring(0, 3);
+    return `TASK-${randomId}`;
+  };
+  
+  // Create the task object with default values plus user input
+  const taskToAdd = {
+    id: generateTaskId(),
+    type: newTask.type || 'task',
+    title: newTask.title,
+    description: newTask.description || '',
+    priority: newTask.priority || 'medium',
+    storyPoints: newTask.storyPoints || 1,
+    assignee: newTask.assignee || users[0], // Default to first user if not specified
+    completed: false
+  };
+  
+  // Add to todo column by default
+  const newTasks = {
+    ...tasks,
+    todo: [...tasks.todo, taskToAdd]
+  };
+  
+  // Update state
+  setTasks(newTasks);
+  
+  // Update sprint data
+  const updatedSprints = sprints.map(sprint => {
+    if (sprint.id === currentSprint.id) {
+      return {
+        ...sprint,
+        tasks: newTasks
+      };
+    }
+    return sprint;
+  });
+  
+  setSprints(updatedSprints);
+  setCurrentSprint({ ...currentSprint, tasks: newTasks });
+  
+  // Close dialog if needed
+  setTaskDialogOpen(false);
+};
+
+// Add Task Dialog Component
+
 
   const getFilteredTasks = () => {
     if (!searchQuery) return tasks;
@@ -305,6 +359,7 @@ function App() {
               variant="outlined"
               size="small"
               startIcon={<AddIcon />}
+              onClick={() => setTaskDialogOpen(true)}
               sx={{ mr: 1 }}
             >
               Create task
@@ -418,7 +473,7 @@ function App() {
 
       {/* Task Detail Dialog */}
       {selectedTask && (
-        <Dialog open={taskDetailOpen} onClose={handleCloseTaskDetail} maxWidth="md">
+        <Dialog open={taskDetailOpen} onClose={handleCloseTaskDetail} maxWidth="md" minWidth="500px">
           <DialogTitle>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               {selectedTask.id} - {selectedTask.title}
@@ -464,7 +519,13 @@ function App() {
           </DialogActions>
         </Dialog>
       )}
-      
+      {/* Add Task Dialog */}
+      <TaskDialog
+        open={taskDialogOpen}
+        onClose={() => setTaskDialogOpen(false)}
+        onAdd={handleAddTask}
+        users={users}
+      />
       </>
   );
 }
