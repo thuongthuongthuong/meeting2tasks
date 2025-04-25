@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   mongodb:
     image: mongo:6.0
@@ -7,16 +5,40 @@ services:
       - "27017:27017"
     volumes:
       - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8000/docs"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   task-service:
     build:
       context: ./task-service
       dockerfile: Dockerfile
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
     environment:
-      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/meeting2tasks
-      AI_MODEL_URL: http://ai-service:8000/extract-tasks
+      - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/meeting2tasks
+      - AI_MODEL_URL=http://ai-service:8000/extract-tasks
     ports:
       - "8081:8080"
 
@@ -25,22 +47,15 @@ services:
       context: ./scheduling-service
       dockerfile: Dockerfile
     depends_on:
-      - mongodb
-      - task-service
+      mongodb:
+        condition: service_healthy
+      task-service:
+        condition: service_healthy
     environment:
-      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/meeting2tasks
-      TASK_SERVICE_URL: http://task-service:8080/api/tasks
+      - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/meeting2tasks
+      - TASK_SERVICE_URL=http://task-service:8080/api/tasks
     ports:
       - "8082:8080"
-
-  ai-service:
-    build:
-      context: ./ai-service
-      dockerfile: Dockerfile
-    environment:
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-    ports:
-      - "8000:8000"
 
 volumes:
   mongodb_data:
