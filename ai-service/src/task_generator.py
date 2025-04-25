@@ -2,20 +2,16 @@ import os
 import json
 import logging
 from openai import OpenAI
+from dotenv import load_dotenv
 
-# Thiết lập logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Lấy API key từ biến môi trường
-api_key = os.getenv("OPENAI_API_KEY")
-if not api_key:
-    raise ValueError("OPENAI_API_KEY environment variable is not set")
+load_dotenv()
 
-client = OpenAI(api_key=api_key)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def strip_markdown_fences(content: str) -> str:
-    """Loại bỏ định dạng Markdown (nếu có) từ nội dung."""
     content = content.strip()
     if content.startswith("```json"):
         content = content.removeprefix("```json").removesuffix("```").strip()
@@ -24,7 +20,6 @@ def strip_markdown_fences(content: str) -> str:
     return content
 
 def get_task_json(user_input: str, project_id: int = None) -> list:
-    """Tạo danh sách tasks từ user_input bằng OpenAI."""
     project_id_text = "null" if project_id is None else str(project_id)
 
     system_prompt = f"""
@@ -70,18 +65,14 @@ def get_task_json(user_input: str, project_id: int = None) -> list:
         raw_output = response.choices[0].message.content
         logger.info(f"Raw output from OpenAI: {raw_output}")
 
-        # Loại bỏ Markdown fences (nếu có)
         clean_output = strip_markdown_fences(raw_output)
         logger.debug(f"Cleaned output: {clean_output}")
 
-        # Parse JSON
         tasks = json.loads(clean_output)
 
-        # Đảm bảo tasks là một list
         if not isinstance(tasks, list):
             raise ValueError("OpenAI response must be a JSON array")
 
-        # Validate cấu trúc của mỗi task
         required_fields = {"id", "title", "description", "status", "assignedUserId", "meetingNoteId"}
         for task in tasks:
             if not isinstance(task, dict):

@@ -4,7 +4,6 @@ from typing import Optional
 from src.task_generator import get_task_json
 import logging
 
-# Thiết lập logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -20,7 +19,7 @@ async def extract_tasks(request: TaskRequest):
     try:
         tasks = get_task_json(request.user_input, request.project_id)
         logger.info(f"Successfully generated tasks: {tasks}")
-        return {"tasks": tasks}
+        return tasks  # Trả về mảng trực tiếp thay vì {"tasks": tasks}
     except Exception as e:
         logger.error(f"Error generating tasks: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error generating tasks: {str(e)}")

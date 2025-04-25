@@ -1,16 +1,18 @@
 services:
   mongodb:
-    image: mongo:6.0
+    build:
+      context: .
+      dockerfile: Dockerfile.mongodb
     ports:
       - "27017:27017"
     volumes:
       - mongodb_data:/data/db
     healthcheck:
-      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      test: ["CMD", "nc", "-z", "localhost", "27017"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 30s
 
   ai-service:
     build:
