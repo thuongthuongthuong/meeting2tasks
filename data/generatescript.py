@@ -114,7 +114,7 @@ types = [
 priorities = ["Low", "Medium", "High"]
 
 # ─── Configuration ──────────────────────────────────────────────────────────────
-MONGO_URI               = "mongodb+srv://HaQuangHuy:123@taskassignmentdb.o6geekw.mongodb.net/"
+MONGO_URI               = "mongodb+srv://***:***@***/"
 DB_NAME                 = "task_assignment_db"
 
 NUM_SKILLS              = 25
