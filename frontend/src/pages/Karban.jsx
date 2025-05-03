@@ -39,6 +39,9 @@ import { DragDropContext, Droppable } from 'react-beautiful-dnd';
 import StatusColumn from '../components/StatusColumn';
 import { users, mockSprints } from '../mockData/data';
 import TaskDialog from '../components/TaskDialog';
+import AIAssistant from '../components/AIAssistant';
+import TaskListSidebar from '../components/TaskListSidebar';
+//------------------------------------------------------
 
 function App() {
   const [anchorEl, setAnchorEl] = useState(null);
@@ -284,9 +287,6 @@ const handleAddTask = (newTask) => {
               {currentSprint.name}
             </Button>
             <Box sx={{ flexGrow: 1 }} />
-            <IconButton size="small" sx={{ mr: 1 }}>
-              <FlashOnIcon />
-            </IconButton>
             {currentSprint.status !== 'completed' && (
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <AccessTimeIcon sx={{ color: 'text.secondary', mr: 0.5 }} fontSize="small" />
@@ -353,7 +353,6 @@ const handleAddTask = (newTask) => {
           </Box>
           
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Chip label="Epic" variant="outlined" onDelete={() => {}} deleteIcon={<KeyboardArrowDownIcon />} sx={{ mr: 1 }} />
             
             <Button
               variant="outlined"
@@ -364,28 +363,6 @@ const handleAddTask = (newTask) => {
             >
               Create task
             </Button>
-            
-            <Tooltip title="Get AI help">
-              <Button 
-                variant="outlined" 
-                startIcon={<SmartToyIcon />} 
-                size="small"
-                onClick={handleAiMenuClick}
-                sx={{ ml: 'auto' }}
-              >
-                AI Help
-              </Button>
-            </Tooltip>
-            <Menu
-              anchorEl={aiAnchor}
-              open={Boolean(aiAnchor)}
-              onClose={handleAiMenuClose}
-            >
-              <MenuItem onClick={handleAiMenuClose}>Generate task descriptions</MenuItem>
-              <MenuItem onClick={handleAiMenuClose}>Summarize sprint</MenuItem>
-              <MenuItem onClick={handleAiMenuClose}>Suggest task priorities</MenuItem>
-              <MenuItem onClick={handleAiMenuClose}>Help with estimations</MenuItem>
-            </Menu>
           </Box>
         </Box>
 
@@ -426,8 +403,14 @@ const handleAddTask = (newTask) => {
               tasks={filteredTasks.done}
               onTaskClick={handleTaskClick}
             />
+            <TaskListSidebar 
+        tasks={filteredTasks} 
+        onTaskClick={handleTaskClick}
+        currentSprint={currentSprint}
+      />
           </Box>
         </DragDropContext>
+        
       </Box>
 
       {/* Sprint Selection Dialog */}
@@ -526,6 +509,7 @@ const handleAddTask = (newTask) => {
         onAdd={handleAddTask}
         users={users}
       />
+      {/* <AIAssistant/> */}
       </>
   );
 }
