@@ -6,5 +6,5 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import java.util.List;
 
 public interface ProjectMembersRepository extends MongoRepository<ProjectMembers, String> {
-    List<ProjectMembers> findByProjectId(String projectId);
+    List<ProjectMembers> findByProjectId(Integer projectId);
 }

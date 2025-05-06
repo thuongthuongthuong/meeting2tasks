@@ -1,5 +1,7 @@
 package com.meeting2tasks.schedulingservice.service;
 
+import com.meeting2tasks.schedulingservice.model.AiTask;
+import com.meeting2tasks.schedulingservice.model.AiTaskWithUsers;
 import com.meeting2tasks.schedulingservice.model.Milestone;
 import com.meeting2tasks.schedulingservice.model.ProjectMembers;
 import com.meeting2tasks.schedulingservice.model.Sprint;
@@ -7,7 +9,7 @@ import com.meeting2tasks.schedulingservice.model.User;
 import com.meeting2tasks.schedulingservice.repository.MilestoneRepository;
 import com.meeting2tasks.schedulingservice.repository.ProjectMembersRepository;
 import com.meeting2tasks.schedulingservice.repository.SprintRepository;
-import com.meeting2tasks.schedulingservice.repository.UserRepository;
+import com.meeting2tasks.schedulingservice.repository.userRepository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
@@ -39,10 +41,21 @@ public class SchedulingService {
     @Autowired
     private RestTemplate restTemplate;
 
-    public List<User> getUsersByProjectId(String projectId) {
+    public List<User> getUsersByProjectId(Integer projectId) {
+        System.out.println("Fetching users for projectId: " + projectId);
         List<ProjectMembers> members = projectMembersRepository.findByProjectId(projectId);
-        return members.stream()
-                .map(member -> userRepository.findById(member.getUserId()).orElse(null))
+        System.out.println("Found ProjectMembers: " + (members != null ? members.size() : 0));
+        if (members == null || members.isEmpty()) {
+            System.out.println("No members found for projectId: " + projectId);
+            return Collections.emptyList();
+        }
+        List<Integer> userIds = members.stream().map(ProjectMembers::getUserId).collect(Collectors.toList());
+        return userRepository.findByUserIdIn(userIds)
+                .stream()
+                .map(user -> {
+                    System.out.println("Mapping userId: " + user.getId() + ", Found user: " + user.getName());
+                    return user;
+                })
                 .filter(user -> user != null)
                 .collect(Collectors.toList());
     }
@@ -86,6 +99,43 @@ public class SchedulingService {
         }
 
         return new SprintWithTasks(sprint, tasks);
+    }
+
+    public List<AiTaskWithUsers> assignUsersToTasks(Integer projectId, List<AiTask> aiTasks) {  // Thay String thành Integer
+        System.out.println("Processing assignUsersToTasks for projectId: " + projectId);
+        if (projectId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Project ID cannot be null");
+        }
+
+        if (aiTasks == null || aiTasks.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<User> projectUsers = getUsersByProjectId(projectId);
+        System.out.println("Total project users found: " + projectUsers.size());
+        if (projectUsers.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No users found for project with ID: " + projectId);
+        }
+
+        List<AiTaskWithUsers> updatedTasks = new ArrayList<>();
+        for (AiTask task : aiTasks) {
+            AiTaskWithUsers taskWithUsers = new AiTaskWithUsers();
+            taskWithUsers.setTitle(task.getTitle());
+            taskWithUsers.setDescription(task.getDescription());
+            taskWithUsers.setRole(task.getRole());
+
+            if (task.getRole() == null) {
+                taskWithUsers.setAssignableUsers(Collections.emptyList());
+            } else {
+                List<User> assignableUsers = projectUsers.stream()
+                        .filter(user -> task.getRole().equals(user.getRole()))
+                        .collect(Collectors.toList());
+                taskWithUsers.setAssignableUsers(assignableUsers);
+            }
+            updatedTasks.add(taskWithUsers);
+        }
+
+        return updatedTasks;
     }
 }
 

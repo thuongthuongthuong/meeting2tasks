@@ -11,11 +11,11 @@ import java.time.LocalDateTime;
 @Document(collection = "users")
 public class User {
     @Id
-    private String id;
+    private String _id;
+
+    private Integer id;
     private String name;
     private String role;
     private String avatar;
-
-    @Field("created_at")
-    private LocalDateTime createdAt;
+    private LocalDateTime created_at;
 }

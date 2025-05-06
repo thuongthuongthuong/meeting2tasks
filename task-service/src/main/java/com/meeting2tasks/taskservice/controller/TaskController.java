@@ -2,6 +2,7 @@ package com.meeting2tasks.taskservice.controller;
 
 import com.meeting2tasks.taskservice.dto.ApiResponse;
 import com.meeting2tasks.taskservice.dto.TaskDTO;
+import com.meeting2tasks.taskservice.model.AiTask;
 import com.meeting2tasks.taskservice.model.Milestone;
 import com.meeting2tasks.taskservice.model.Task;
 import com.meeting2tasks.taskservice.repository.MilestoneRepository;
@@ -44,7 +45,7 @@ public class TaskController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid meeting note provided",
                     content = @Content)
     })
-    public List<Task> processMeetingNotes(
+    public List<AiTask> processMeetingNotes(
             @Parameter(description = "Request containing meeting note text") @RequestBody TaskRequest request) {
         return taskProcessingService.processMeetingNotes(request.getMeetingNote());
     }

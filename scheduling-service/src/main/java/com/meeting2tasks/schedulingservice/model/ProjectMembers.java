@@ -14,10 +14,10 @@ public class ProjectMembers {
     private String id;
 
     @Field("user_id")
-    private String userId;
+    private Integer userId;
 
     @Field("project_id")
-    private String projectId;
+    private Integer projectId;
 
     @Field("joined_at")
     private LocalDateTime joinedAt;
