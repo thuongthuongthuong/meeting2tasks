@@ -2,12 +2,11 @@ package com.meeting2tasks.schedulingservice.model;
 
 import lombok.Data;
 
+import java.util.List;
+
 @Data
-public class Task {
-    private String id;
+public class AiTask {
     private String title;
     private String description;
-    private String status;
-    private String assignedUserId;
-    private String meetingNoteId;
+    private String role;
 }

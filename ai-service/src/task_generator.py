@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
 def strip_markdown_fences(content: str) -> str:
     content = content.strip()
     if content.startswith("```json"):
@@ -19,38 +18,37 @@ def strip_markdown_fences(content: str) -> str:
         content = content.removeprefix("```").removesuffix("```").strip()
     return content
 
-def get_task_json(user_input: str, project_id: int = None) -> list:
-    project_id_text = "null" if project_id is None else str(project_id)
+def get_task_json(user_input: str) -> list:
+    system_prompt = """
+        You are an AI assistant for project management specializing in task extraction. Your job is to analyze the user's input (a meeting note) and break it down into specific, actionable tasks. Return the tasks strictly in JSON format as an array of objects, with no additional comments, explanations, or formatting outside the JSON.
 
-    system_prompt = f"""
-    You are an AI assistant for project management. Your job is to extract structured task data from the user's input and return it strictly in JSON format.
+        Each task should represent a clear, actionable step derived from the input. Do not simply repeat the input as a task; instead, interpret the intent and break it down into smaller, practical tasks. Aim to generate at least 5-7 tasks to cover various aspects of the input, unless the input is too simple to warrant more.
 
-    Your response must include only a valid JSON array of objects and nothing else — no comments, explanations, or formatting outside the JSON.
+        The output format must be: [{"title": "string", "description": "string", "role": "string"}]
 
-    Return one JSON object per task you find in the input. The output format should be:
+        - "title": A concise name for the task (e.g., "Design login page UI").
+        - "description": A detailed description of the task (e.g., "Create a wireframe or mockup for the login page UI").
+        - "role": The role of the person who should perform this task. Choose only from the following predefined roles: "Designer", "Frontend Developer", "Backend Developer", "Tester", "Security Engineer", "Researcher", "Project Manager". Assign the role based on the nature of the task.
 
-    [
-      {{
-        "id": "string",
-        "title": "string",
-        "description": "string",
-        "status": "string",
-        "assignedUserId": "string",
-        "meetingNoteId": "string"
-      }}
-    ]
-
-    - "id": A unique identifier for the task (generate a UUID if not specified).
-    - "title": The task name.
-    - "description": The task description.
-    - "status": The initial status of the task (default to "To Do" if not specified).
-    - "assignedUserId": The ID of the user assigned to the task (default to "user1" if not specified).
-    - "meetingNoteId": The ID of the meeting note (use the project_id if provided, otherwise default to "note1").
-
-    If a value is missing or not specified, use the default values mentioned above.
+        Guidelines for task extraction:
+        1. Analyze the input to identify goals, actions, or responsibilities.
+        2. Break down complex sentences into smaller, actionable tasks (e.g., "Prepare and deliver a presentation" becomes "Draft presentation slides", "Create visuals for slides", "Practice presentation", and "Schedule delivery meeting").
+        3. If the input mentions a deadline, include it in the task description.
+        4. If the input involves multiple people or roles, create separate tasks for each person/role if applicable.
+        5. If the input is vague, infer reasonable tasks based on the context (e.g., for "make a login page", include tasks for design, frontend, backend, testing, and security).
+        6. Ensure each task is specific, actionable, and unique (e.g., avoid generic tasks like "Work on project" without a clear action).
+        7. Assign an appropriate role from the predefined list based on the task's requirements:
+        - "Designer" for UI/UX design tasks.
+        - "Frontend Developer" for frontend development tasks (e.g., HTML, CSS, JavaScript).
+        - "Backend Developer" for backend development tasks (e.g., server-side logic, authentication).
+        - "Tester" for testing tasks.
+        - "Security Engineer" for security-related tasks.
+        - "Researcher" for research or analysis tasks.
+        - "Project Manager" for management or planning tasks.
+        8. Do not include any project ID or project-specific identifiers in the task title or description.
     """
 
-    user_prompt = f"Here is the user input:\n{user_input}\n\nProject ID: {project_id_text}"
+    user_prompt = f"Here is the user input:\n{user_input}"
 
     try:
         response = client.chat.completions.create(
@@ -73,7 +71,7 @@ def get_task_json(user_input: str, project_id: int = None) -> list:
         if not isinstance(tasks, list):
             raise ValueError("OpenAI response must be a JSON array")
 
-        required_fields = {"id", "title", "description", "status", "assignedUserId", "meetingNoteId"}
+        required_fields = {"title", "description", "role"}
         for task in tasks:
             if not isinstance(task, dict):
                 raise ValueError("Each task must be a JSON object")

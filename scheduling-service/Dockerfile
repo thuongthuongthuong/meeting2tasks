@@ -1,11 +1,23 @@
-FROM maven:3.8.6-eclipse-temurin-17 AS build
+# Use an official Maven image to build the project
+FROM maven:3.9-eclipse-temurin-17 AS build
+
+# Set the working directory
 WORKDIR /app
-COPY pom.xml .
-COPY src ./src
+
+# Copy the project files
+COPY . /app
+
+# Build the project
 RUN mvn clean package -DskipTests
 
+# Use an official OpenJDK runtime as the final image
 FROM openjdk:17-jdk-slim
+
+# Set the working directory
 WORKDIR /app
-COPY --from=build /app/target/scheduling-service-0.0.1-SNAPSHOT.jar app.jar
-EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+
+# Copy the JAR file from the build stage
+COPY --from=build /app/target/*.jar /app/app.jar
+
+# Run the JAR file
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

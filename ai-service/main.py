@@ -11,15 +11,14 @@ app = FastAPI()
 
 class TaskRequest(BaseModel):
     user_input: str
-    project_id: Optional[int] = None
 
 @app.post("/extract-tasks")
 async def extract_tasks(request: TaskRequest):
-    logger.info(f"Received request with user_input: {request.user_input}, project_id: {request.project_id}")
+    logger.info(f"Received request with user_input: {request.user_input}")
     try:
-        tasks = get_task_json(request.user_input, request.project_id)
+        tasks = get_task_json(request.user_input)
         logger.info(f"Successfully generated tasks: {tasks}")
-        return tasks  # Trả về mảng trực tiếp thay vì {"tasks": tasks}
+        return tasks
     except Exception as e:
         logger.error(f"Error generating tasks: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error generating tasks: {str(e)}")
