@@ -15,7 +15,7 @@ class LinearAdapter(nn.Module):
     def forward(self, x):
         return self.linear(x)
 
-adapter_checkpoint_path = 'linear_adapter_1epoch.pth'
+adapter_checkpoint_path = 'linear_adapter.pth'
 saved = torch.load(adapter_checkpoint_path, map_location=torch.device("cpu"))
 
 adapter_input_dim = saved['adapter_kwargs'].get('input_dim', 384)
