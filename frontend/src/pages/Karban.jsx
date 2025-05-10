@@ -41,6 +41,8 @@ import { users, mockSprints } from '../mockData/data';
 import TaskDialog from '../components/TaskDialog';
 import AIAssistant from '../components/AIAssistant';
 import TaskListSidebar from '../components/TaskListSidebar';
+import { useParams } from 'react-router-dom';
+import { getUserByPRojectID } from '../utils/api';
 //------------------------------------------------------
 
 function App() {
@@ -54,7 +56,18 @@ function App() {
   const [selectedTask, setSelectedTask] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
-
+  const { id } = useParams();
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const response = await getUserByPRojectID(id);
+        console.log("response", response.data);
+      } catch (error) {
+        console.error('Error fetching user:', error);
+      }
+    }
+    fetchUser();
+  }, [id]);
   useEffect(() => {
     // Update tasks when current sprint changes
     setTasks(currentSprint.tasks);

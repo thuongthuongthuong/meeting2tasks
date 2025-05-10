@@ -28,7 +28,7 @@ export default function Router() {
         { path: "maintenance", element: <Maintenance /> },
         { path: "500", element: <Page500 /> },
         { path: "404", element: <Page404 /> },
-        { path: "", element: <Karban /> },
+        { path: ":id", element: <Karban /> },
         { path: "*", element: <Navigate to="/404" replace /> },
       ],
     },
@@ -38,17 +38,17 @@ export default function Router() {
 
 
 const Page500 = Loadable(
-  lazy(() => fakeDelay(3000).then(() => import("../pages/Page500")))
+  lazy(() => fakeDelay(1000).then(() => import("../pages/Page500")))
 );
 
 const Page404 = Loadable(
-  lazy(() => fakeDelay(3000).then(() => import("../pages/Page404")))
+  lazy(() => fakeDelay(1000).then(() => import("../pages/Page404")))
 );
 
 const Maintenance = Loadable(
-  lazy(() => fakeDelay(3000).then(() => import("../pages/Maintenance")))
+  lazy(() => fakeDelay(1000).then(() => import("../pages/Maintenance")))
 );
 
 const Karban = Loadable(
-  lazy(() => fakeDelay(3000).then(() => import("../pages/Karban")))
+  lazy(() => fakeDelay(1000).then(() => import("../pages/Karban")))
 );

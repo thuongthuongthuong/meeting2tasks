@@ -2,7 +2,7 @@ import axios from "axios";
 // ----------------------------------------------------------------------
 
 const axiosInstance = axios.create({
-  baseURL: "http://localhost:3000/api/",
+  baseURL: "",
 });
 
 axiosInstance.interceptors.request.use(
@@ -45,7 +45,7 @@ axiosInstance.interceptors.response.use(
         window.location.href = "/maintenance";
       }
     } else if (error.request) {
-      window.location.href = "/500";
+       window.location.href = "/500";
     } else {
       // Something happened in setting up the request that triggered an error
       console.log(`Error: ${error.message}`);
