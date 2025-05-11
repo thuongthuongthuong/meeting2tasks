@@ -5,4 +5,4 @@ pandas==2.2.2
 numpy==1.26.4
 openai==1.50.0
 python-dotenv==1.0.1
-httpx==0.27.2
+httpx==0.27.2git
