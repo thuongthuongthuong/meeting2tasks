@@ -52,12 +52,9 @@ def query_with_adapter(text, top_k=5):
 
 
 if __name__ == "__main__":
-    texts = ["how to bake a cake", "learn python programming", "exploring the galaxy"]
-    ids = ["doc1", "doc2", "doc3"]
-
-    upsert_with_base_model(texts, ids)
-
     print("\nQuery: 'python code tutorial'")
-    res = query_with_adapter("python code tutorial")
+    res = query_with_adapter("python code tutorial 2 months")
     for match in res["matches"]:
-        print(f"ID: {match['id']} | Score: {match['score']:.4f}")
+        score = float(match['score'])  # Ensure it's a float
+        print(f"ID: {match['id']} | Score: {score:.4f}")
+
