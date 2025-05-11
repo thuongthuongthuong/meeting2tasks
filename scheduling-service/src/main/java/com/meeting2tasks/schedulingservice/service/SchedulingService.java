@@ -85,7 +85,7 @@ public class SchedulingService {
             try {
                 System.out.println("Fetching tasks for milestoneId: " + milestoneId);
                 List<TaskDTO> milestoneTasks = restTemplate.exchange(
-                        "http://localhost:8081/api/tasks/milestone/" + milestoneId,
+                        "http://task-service:8081/api/tasks/milestone/" + milestoneId,
                         org.springframework.http.HttpMethod.GET,
                         null,
                         new ParameterizedTypeReference<List<TaskDTO>>() {}
