@@ -1,11 +1,6 @@
 package com.meeting2tasks.schedulingservice.service;
 
-import com.meeting2tasks.schedulingservice.model.AiTask;
-import com.meeting2tasks.schedulingservice.model.AiTaskWithUsers;
-import com.meeting2tasks.schedulingservice.model.Milestone;
-import com.meeting2tasks.schedulingservice.model.ProjectMembers;
-import com.meeting2tasks.schedulingservice.model.Sprint;
-import com.meeting2tasks.schedulingservice.model.User;
+import com.meeting2tasks.schedulingservice.model.*;
 import com.meeting2tasks.schedulingservice.repository.MilestoneRepository;
 import com.meeting2tasks.schedulingservice.repository.ProjectMembersRepository;
 import com.meeting2tasks.schedulingservice.repository.SprintRepository;
@@ -60,7 +55,7 @@ public class SchedulingService {
                 .collect(Collectors.toList());
     }
 
-    public List<String> getSprintIdsByProjectId(String projectId) {
+    public List<String> getSprintIdsByProjectId(Integer projectId) {
         List<Sprint> sprints = sprintRepository.findByProjectId(projectId);
         return sprints.stream()
                 .map(Sprint::getId)
@@ -71,37 +66,74 @@ public class SchedulingService {
         Sprint sprint = sprintRepository.findById(sprintId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Sprint not found"));
 
+        System.out.println("Fetching milestones for sprintId: " + sprintId);
         List<Milestone> milestones = milestoneRepository.findBySprintId(sprintId);
+        System.out.println("Found milestones: " + (milestones != null ? milestones.size() : 0));
+
         if (milestones == null || milestones.isEmpty()) {
+            System.out.println("No milestones found for sprintId: " + sprintId);
             return new SprintWithTasks(sprint, Collections.emptyList());
         }
 
         List<String> milestoneIds = milestones.stream()
                 .map(Milestone::getId)
                 .collect(Collectors.toList());
+        System.out.println("Milestone IDs: " + milestoneIds);
 
         List<TaskDTO> tasks = new ArrayList<>();
         for (String milestoneId : milestoneIds) {
             try {
+                System.out.println("Fetching tasks for milestoneId: " + milestoneId);
                 List<TaskDTO> milestoneTasks = restTemplate.exchange(
-                        "http://task-service:8081/api/tasks/milestone/" + milestoneId,
+                        "http://localhost:8081/api/tasks/milestone/" + milestoneId,
                         org.springframework.http.HttpMethod.GET,
                         null,
                         new ParameterizedTypeReference<List<TaskDTO>>() {}
                 ).getBody();
 
                 if (milestoneTasks != null) {
+                    System.out.println("Found tasks for milestoneId " + milestoneId + ": " + milestoneTasks.size());
                     tasks.addAll(milestoneTasks);
+                } else {
+                    System.out.println("No tasks found for milestoneId: " + milestoneId);
                 }
             } catch (RestClientException e) {
                 System.err.println("Error fetching tasks for milestone " + milestoneId + ": " + e.getMessage());
             }
         }
 
+        System.out.println("Total tasks for sprintId " + sprintId + ": " + tasks.size());
         return new SprintWithTasks(sprint, tasks);
     }
 
-    public List<AiTaskWithUsers> assignUsersToTasks(Integer projectId, List<AiTask> aiTasks) {  // Thay String thành Integer
+    public List<TaskDTO> getTasksByProjectId(Integer projectId) {
+        System.out.println("Fetching tasks for projectId: " + projectId);
+
+        List<String> sprintIds = getSprintIdsByProjectId(projectId);
+        System.out.println("Found sprints: " + (sprintIds != null ? sprintIds.size() : 0));
+
+        if (sprintIds == null || sprintIds.isEmpty()) {
+            System.out.println("No sprints found for projectId: " + projectId);
+            return Collections.emptyList();
+        }
+
+        List<TaskDTO> allTasks = new ArrayList<>();
+        for (String sprintId : sprintIds) {
+            try {
+                SprintWithTasks sprintWithTasks = getSprintWithTasks(sprintId);
+                if (sprintWithTasks != null && sprintWithTasks.getTasks() != null) {
+                    allTasks.addAll(sprintWithTasks.getTasks());
+                }
+            } catch (ResponseStatusException e) {
+                System.err.println("Error fetching tasks for sprint " + sprintId + ": " + e.getMessage());
+            }
+        }
+
+        System.out.println("Total tasks found: " + allTasks.size());
+        return allTasks;
+    }
+
+    public List<AiTaskWithUsers> assignUsersToTasks(Integer projectId, List<AiTask> aiTasks) {
         System.out.println("Processing assignUsersToTasks for projectId: " + projectId);
         if (projectId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Project ID cannot be null");
@@ -137,26 +169,4 @@ public class SchedulingService {
 
         return updatedTasks;
     }
-}
-
-class TaskDTO {
-    private String userId;
-    private String title;
-    private String description;
-    private String priority;
-    private Integer story_points;
-    private String type;
-
-    public String getUserId() { return userId; }
-    public void setUserId(String userId) { this.userId = userId; }
-    public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
-    public String getDescription() { return description; }
-    public void setDescription(String description) { this.description = description; }
-    public String getPriority() { return priority; }
-    public void setPriority(String priority) { this.priority = priority; }
-    public Integer getStory_points() { return story_points; }
-    public void setStory_points(Integer story_points) { this.story_points = story_points; }
-    public String getType() { return type; }
-    public void setType(String type) { this.type = type; }
 }

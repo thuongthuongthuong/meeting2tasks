@@ -2,9 +2,10 @@ package com.meeting2tasks.schedulingservice.controller;
 
 import com.meeting2tasks.schedulingservice.model.AiTask;
 import com.meeting2tasks.schedulingservice.model.AiTaskWithUsers;
+import com.meeting2tasks.schedulingservice.model.TaskDTO;
 import com.meeting2tasks.schedulingservice.model.User;
 import com.meeting2tasks.schedulingservice.service.SchedulingService;
-import com.meeting2tasks.schedulingservice.service.SprintWithTasks;
+import com.meeting2tasks.schedulingservice.model.SprintWithTasks;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -49,7 +50,7 @@ public class SchedulingController {
                     content = @Content)
     })
     public List<String> getSprintIdsByProjectId(
-            @Parameter(description = "ID of the project to retrieve sprint IDs for") @PathVariable String projectId) {
+            @Parameter(description = "ID of the project to retrieve sprint IDs for") @PathVariable Integer projectId) {
         return schedulingService.getSprintIdsByProjectId(projectId);
     }
 
@@ -67,6 +68,22 @@ public class SchedulingController {
         return schedulingService.getSprintWithTasks(sprintId);
     }
 
+    @GetMapping("/tasks/{projectId}")
+    @Operation(summary = "Get tasks by project ID", description = "Retrieves a list of all tasks associated with a project")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "List of tasks retrieved successfully",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = TaskDTO.class))),
+            @ApiResponse(responseCode = "404", description = "Project not found or no tasks available",
+                    content = @Content),
+            @ApiResponse(responseCode = "500", description = "Internal server error",
+                    content = @Content)
+    })
+    public List<TaskDTO> getTasksByProjectId(
+            @Parameter(description = "ID of the project to retrieve tasks for") @PathVariable Integer projectId) {
+        return schedulingService.getTasksByProjectId(projectId);
+    }
+
     @PostMapping("/assign-users-to-tasks")
     @Operation(summary = "Assign users to tasks based on role and project", description = "Receives a list of AiTasks and a project ID, returns a list of AiTaskWithUsers with assignable users based on role and project membership")
     @ApiResponses(value = {
@@ -81,7 +98,7 @@ public class SchedulingController {
                     content = @Content)
     })
     public List<AiTaskWithUsers> assignUsersToTasks(
-            @RequestParam Integer projectId,  // Thay String thành Integer
+            @RequestParam Integer projectId,
             @RequestBody List<AiTask> aiTasks) {
         return schedulingService.assignUsersToTasks(projectId, aiTasks);
     }
