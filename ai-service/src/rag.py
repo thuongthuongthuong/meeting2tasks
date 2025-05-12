@@ -15,7 +15,7 @@ class LinearAdapter(nn.Module):
     def forward(self, x):
         return self.linear(x)
 
-adapter_checkpoint_path = 'linear_adapter.pth'
+adapter_checkpoint_path = 'ai-service/src/linear_adapter.pth'
 saved = torch.load(adapter_checkpoint_path, map_location=torch.device("cpu"))
 
 adapter_input_dim = saved['adapter_kwargs'].get('input_dim', 384)
@@ -56,5 +56,7 @@ if __name__ == "__main__":
     res = query_with_adapter("python code tutorial 2 months")
     for match in res["matches"]:
         score = float(match['score'])  # Ensure it's a float
-        print(f"ID: {match['id']} | Score: {score:.4f}")
+        text = match['metadata'].get('text', 'No text available')  # Safely access the 'text' field
+        print(f"ID: {match['id']} | Score: {score:.4f} | Text: {text}")
+
 

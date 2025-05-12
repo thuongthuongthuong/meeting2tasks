@@ -11,12 +11,13 @@ app = FastAPI()
 
 class TaskRequest(BaseModel):
     user_input: str
+    project_id: Optional[str] = None
 
 @app.post("/extract-tasks")
 async def extract_tasks(request: TaskRequest):
     logger.info(f"Received request with user_input: {request.user_input}")
     try:
-        tasks = get_task_json(request.user_input)
+        tasks = get_task_json(request.user_input, request.project_id)
         logger.info(f"Successfully generated tasks: {tasks}")
         return tasks
     except Exception as e:

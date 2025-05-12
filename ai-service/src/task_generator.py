@@ -3,6 +3,8 @@ import json
 import logging
 from openai import OpenAI
 from dotenv import load_dotenv
+from rag import query_with_adapter
+from utils import create_description, get_document_by_project_id
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -18,7 +20,11 @@ def strip_markdown_fences(content: str) -> str:
         content = content.removeprefix("```").removesuffix("```").strip()
     return content
 
-def get_task_json(user_input: str) -> list:
+def get_task_json(user_input: str, project_id = None) -> list:
+    project_doc = get_document_by_project_id(project_id)
+    desc = create_description(project_doc)
+    relevant_project = query_with_adapter
+
     system_prompt = """
         You are an AI assistant for project management specializing in task extraction. Your job is to analyze the user's input (a meeting note) and break it down into specific, actionable tasks. Return the tasks strictly in JSON format as an array of objects, with no additional comments, explanations, or formatting outside the JSON.
 
