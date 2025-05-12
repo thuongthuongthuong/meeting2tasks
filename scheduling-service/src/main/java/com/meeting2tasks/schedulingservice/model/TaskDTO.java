@@ -1,13 +1,17 @@
 package com.meeting2tasks.schedulingservice.model;
 
 public class TaskDTO {
+    private String id;
     private String userId;
     private String title;
     private String description;
     private String priority;
     private Integer story_points;
     private String type;
+    private String status;
 
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
     public String getUserId() { return userId; }
     public void setUserId(String userId) { this.userId = userId; }
     public String getTitle() { return title; }
@@ -20,4 +24,6 @@ public class TaskDTO {
     public void setStory_points(Integer story_points) { this.story_points = story_points; }
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
 }

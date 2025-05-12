@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+@CrossOrigin(origins = "http://localhost:5173")
 @RestController
 @RequestMapping("/api/tasks")
 @Tag(name = "Task Management", description = "APIs for managing tasks in the Meeting2Tasks application")
@@ -76,7 +77,7 @@ public class TaskController {
         task.setPriority(taskDTO.getPriority());
         task.setStoryPoints(taskDTO.getStory_points());
         task.setType(taskDTO.getType());
-        task.setStatus("To Do");
+        task.setStatus(taskDTO.getStatus());
         task.setAssignedAt(LocalDateTime.now());
         task.setDeadline(LocalDateTime.now().plusDays(7));
 
@@ -125,7 +126,7 @@ public class TaskController {
             task.setPriority(taskDTO.getPriority());
             task.setStoryPoints(taskDTO.getStory_points());
             task.setType(taskDTO.getType());
-
+            task.setStatus(taskDTO.getStatus());
             taskRepository.save(task);
             return ResponseEntity.ok(new ApiResponse(true, "Task updated successfully"));
         } else {
@@ -148,12 +149,14 @@ public class TaskController {
 
         return tasks.stream().map(task -> {
             TaskDTO taskDTO = new TaskDTO();
+            taskDTO.setId(task.getId());
             taskDTO.setUserId(task.getAssignedUserId());
             taskDTO.setTitle(task.getName());
             taskDTO.setDescription(task.getDescription());
             taskDTO.setPriority(task.getPriority());
             taskDTO.setStory_points(task.getStoryPoints());
             taskDTO.setType(task.getType());
+            taskDTO.setStatus(task.getStatus());
             return taskDTO;
         }).collect(Collectors.toList());
     }

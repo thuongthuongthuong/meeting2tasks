@@ -6,6 +6,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Data
 @Document(collection = "tasks")
@@ -36,4 +37,9 @@ public class Task {
     private String type; // e.g., "Bug", "Feature", "Task"
     private String status; // e.g., "To Do", "In Progress", "Done"
     private String meetingNoteId;
+
+    // Constructor
+    public Task() {
+        this.id = UUID.randomUUID().toString(); // Tạo ID ngẫu nhiên
+    }
 }
