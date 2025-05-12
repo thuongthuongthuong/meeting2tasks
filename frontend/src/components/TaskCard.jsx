@@ -1,4 +1,3 @@
-// TaskCard.js
 import React from 'react';
 import {
   Card,
@@ -52,10 +51,9 @@ const TaskCard = ({ task, index, onClick }) => {
             mb: 2,
             cursor: 'pointer',
             opacity: snapshot.isDragging ? 0.8 : 1,
-            // Position fixed during drag prevents other cards from moving
             position: snapshot.isDragging ? 'fixed' : 'relative',
             zIndex: snapshot.isDragging ? 999 : 'auto',
-            width: snapshot.isDragging ? 280 - 16 : 'auto', // Adjust width when dragging
+            width: snapshot.isDragging ? 280 - 16 : 'auto',
             '&:hover': {
               boxShadow: '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)',
               backgroundColor: '#FAFBFC'
@@ -66,14 +64,7 @@ const TaskCard = ({ task, index, onClick }) => {
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 {getTypeIcon()}
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  component="span"
-                  sx={{ ml: 0.5, fontWeight: 500 }}
-                >
-                  {task.id}
-                </Typography>
+                {/* Xóa phần hiển thị task.id */}
               </Box>
               <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center' }}>
                 {task.completed && <CheckCircleIcon fontSize="small" sx={{ color: '#00875A', mr: 0.5 }} />}
