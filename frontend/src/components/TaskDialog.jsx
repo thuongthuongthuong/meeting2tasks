@@ -68,7 +68,6 @@ const TaskDialog = ({ open, onClose, onAdd, onEdit, users, task }) => {
       onAdd(taskData);   // If adding, use onAdd
     }
   };
-  console.log(taskData)
   return (
     <Dialog 
       open={open} 

@@ -36,7 +36,7 @@ const StatusColumn = ({ title, id, count, tasks, onTaskClick, users }) => {
             {tasks.map((task, index) => (
               <TaskCard 
                 key={task.id} 
-                user={users.find(user => user.id === task.userId)}
+                user={users.find(user => user._id === task.userId)}
                 task={task} 
                 index={index}
                 onClick={() => onTaskClick(task)}

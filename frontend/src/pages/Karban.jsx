@@ -51,7 +51,6 @@ export default function Karban() {
   const [sprints, setSprints] = useState(mockSprints);
   const [currentSprint, setCurrentSprint] = useState(sprints[0]);
   const [currentSprintId, setCurrentSprintId] = useState(currentSprint?.sprint?.id);
-  const [tasks, setTasks] = useState(currentSprint.tasks);
   const [sprintDialogOpen, setSprintDialogOpen] = useState(false);
   const [taskDetailOpen, setTaskDetailOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
@@ -64,6 +63,7 @@ export default function Karban() {
   const [done, setDone] = useState([]);
   const onAddTask= (task) => {
     setTodo((prev) => [...prev, task]);
+    fetchSprint();
   }
 
   const fetchUser = async () => {
@@ -278,6 +278,7 @@ const handleAddTask = async (newTask) => {
   
   setTaskDialogOpen(false);
   await addTask(currentSprint?.sprint?.id, taskToAdd);
+  fetchSprint();
 };
 
   

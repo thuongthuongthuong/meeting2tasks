@@ -93,6 +93,13 @@ const TaskCard = ({ task, index, onClick, user }) => {
               {task.title}
             </Typography>
             <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ mr: 1 }}
+              >
+                {user?.name}
+              </Typography>
               <Avatar
                 alt={user?.name}
                 src={user?.avatar}
