@@ -62,50 +62,95 @@ const TaskCard = ({ task, index, onClick, user }) => {
             }
           }}
         >
-          <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+            {/* Header: Type và Status */}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 {getTypeIcon()}
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  component="span"
-                  sx={{ ml: 0.5, fontWeight: 500 }}
-                >
-                  {task.id && task.id.length >= 9 ? task.id.slice(-9, -2) : task.id}
+                <Typography variant="caption" color="text.secondary">
+                  {task.type.charAt(0).toUpperCase() + task.type.slice(1)}
                 </Typography>
               </Box>
-              <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center' }}>
+              {task.completed && (
+                <Chip
+                  icon={<CheckCircleIcon fontSize="small" />}
+                  label="Done"
+                  size="small"
+                  color="success"
+                  sx={{ fontSize: '0.75rem', height: 20 }}
+                />
+              )}
+            </Box>
+
+            {/* Title */}
+            <Typography
+              variant="subtitle1"
+              sx={{
+                fontWeight: 500,
+                mb: 1.5,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+              }}
+            >
+              {task.title}
+            </Typography>
+
+            {/* Details: Story Points, Priority, Assignee */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="caption" color="text.secondary">Story Points</Typography>
                 <Chip
                   label={task.story_points}
                   size="small"
                   variant="outlined"
-                  sx={{
-                    height: 20,
-                    fontSize: '0.75rem',
-                    mr: 0.5
-                  }}
+                  sx={{ height: 20, fontSize: '0.75rem', color: '#374151' }}
                 />
-                {getPriorityIcon()}
               </Box>
-            </Box>
-            <Typography variant="body1" sx={{ mb: 1 }}>
-              {task.title}
-            </Typography>
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ mr: 1 }}
-              >
-                {user?.name}
-              </Typography>
-              <Avatar
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="caption" color="text.secondary">Priority</Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  {getPriorityIcon()}
+                  <Typography variant="caption" sx={{ color: '#374151' }}>
+                    {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                  </Typography>
+                </Box>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="caption" color="text.secondary">Assignee</Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Avatar
                 alt={user?.name}
                 src={user?.avatar}
-                sx={{ width: 24, height: 24 }}
+                sx={{ width: 20, height: 20 }}
               />
+                  <Typography variant="caption" sx={{ color: '#374151' }}>
+                    {user?.name}
+                  </Typography>
+                </Box>
+              </Box>
             </Box>
+
+            {/* Description (nếu có) */}
+            {task.description && (
+              <Typography
+                variant="body2"
+                sx={{
+                  mt: 1.5,
+                  color: '#6B7280',
+                  fontSize: '0.875rem',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                }}
+              >
+                {task.description}
+              </Typography>
+            )}
           </CardContent>
         </Card>
       )}
