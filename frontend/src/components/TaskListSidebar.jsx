@@ -258,7 +258,6 @@ const AISidebar = ({ onAddTask, teamMembers, projectName, id, sprintId }) => {
 
                   <IconButton 
                     size="small" 
-                    onClick={handleVoiceInput} // đổi tên hàm nếu cần
                     sx={{ 
                       mr: 0.5,
                       color: 'rgba(0,0,0,0.54)', // không còn trạng thái "listening"
@@ -267,22 +266,10 @@ const AISidebar = ({ onAddTask, teamMembers, projectName, id, sprintId }) => {
                     <InsertDriveFileIcon />
                   </IconButton>
 
-                  <IconButton 
-                    size="small" 
-                    onClick={handleVoiceInput}
-                    sx={{ 
-                      mr: 0.5,
-                      color: isListening ? '#F44336' : 'rgba(0,0,0,0.54)',
-                      animation: isListening ? 'pulse 1s infinite' : 'none',
-                    }}
-                  >
-                    <MicIcon />
-                  </IconButton>
                   <Button 
   variant="contained" 
   size="small" 
   onClick={handleSubmitPrompt}
-  endIcon={<SendIcon />}
   disabled={!prompt.trim() || isLoading}
   sx={{
     borderRadius: '8px',
