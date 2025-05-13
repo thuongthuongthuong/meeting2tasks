@@ -29,7 +29,7 @@ const TaskDialog = ({ open, onClose, onAdd, onEdit, users, task }) => {
         type: task.type,
         priority: task.priority,
         story_points: task.story_points,
-        userId: parseInt(users.find(user => user.id === +task?.userId)?.id, 10) || parseInt(users[0]?.id, 10),
+        userId: users.find(user => user._id === task?.userId)?._id || users[0]?._id,
         status: task.status,
       });
     } else {
@@ -54,10 +54,10 @@ const TaskDialog = ({ open, onClose, onAdd, onEdit, users, task }) => {
   };
 
   const handleUserChange = (e) => {
-    const selectedUser = users.find(user => user.id === e.target.value);
+    const selectedUser = users.find(user => user._id === e.target.value);
     setTaskData(prev => ({
       ...prev,
-      userId: selectedUser.id,
+      userId: selectedUser._id,
     }));
   };
 
@@ -68,7 +68,7 @@ const TaskDialog = ({ open, onClose, onAdd, onEdit, users, task }) => {
       onAdd(taskData);   // If adding, use onAdd
     }
   };
-
+  console.log(taskData)
   return (
     <Dialog 
       open={open} 
@@ -104,7 +104,7 @@ const TaskDialog = ({ open, onClose, onAdd, onEdit, users, task }) => {
         </IconButton>
       </DialogTitle>
 
-      <DialogContent sx={{ pt: 1 }}>
+      <DialogContent sx={{ pt: 1}}>
         <Stack spacing={3}>
           {/* Title field */}
           <TextField
@@ -187,7 +187,7 @@ const TaskDialog = ({ open, onClose, onAdd, onEdit, users, task }) => {
               label="Story Points"
               sx={{ borderRadius: 1.5 }}
             >
-              {[1, 2, 3, 5, 8, 13].map(point => (
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(point => (
                 <MenuItem key={point} value={point}>
                   {point} {point === 1 ? 'point' : 'points'}
                 </MenuItem>
@@ -206,7 +206,7 @@ const TaskDialog = ({ open, onClose, onAdd, onEdit, users, task }) => {
               sx={{ borderRadius: 1.5 }}
             >
               {users.map(user => (
-                <MenuItem key={user.id} value={user.id}>
+                <MenuItem key={user._id} value={user._id}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                     <Avatar 
                       src={user.avatar} 

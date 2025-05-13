@@ -91,7 +91,6 @@ export default function Karban() {
       const response = await getSprintByProjectID(id);
       setSprints(response.data);
       setCurrentSprintId(response.data[response.data.length - 1]);
-      console.log('Sprints:', response.data);
     } catch (error) {
       console.error('Error fetching sprints:', error);
     }
@@ -128,6 +127,7 @@ export default function Karban() {
   };
 
   const handleTaskClick = (task) => {
+    task.assignee = users.find(user => user._id === task.userId);
     setSelectedTask(task);
     setTaskDetailOpen(true);
   };
