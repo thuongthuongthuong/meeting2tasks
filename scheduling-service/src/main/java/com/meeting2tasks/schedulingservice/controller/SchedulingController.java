@@ -86,7 +86,7 @@ public class SchedulingController {
     }
 
     @PostMapping("/assign-users-to-tasks")
-    @Operation(summary = "Assign users to tasks based on role and project", description = "Receives a list of AiTasks and a project ID, returns a list of AiTaskWithUsers with assignable users based on role and project membership")
+    @Operation(summary = "Assign users to tasks based on role and project", description = "Receives a list of AiTasks and a project ID, returns a list of AiTaskWithUsers with assignable users and additional task metrics")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "List of AiTaskWithUsers with assignable users retrieved successfully",
                     content = @Content(mediaType = "application/json",

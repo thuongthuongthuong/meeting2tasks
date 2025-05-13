@@ -37,7 +37,7 @@ services:
       - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/meeting2tasks
       - AI_MODEL_URL=http://ai-service:8000/extract-tasks
     ports:
-      - "8081:8081"  # Đổi cổng bên trong thành 8081 để khớp với URL gọi từ scheduling-service
+      - "8081:8081"
     networks:
       - app-network
     restart: unless-stopped
@@ -53,7 +53,7 @@ services:
       - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/meeting2tasks
       - TASK_SERVICE_URL=http://task-service:8081/api/tasks
     ports:
-      - "8082:8082"  
+      - "8082:8082"
     networks:
       - app-network
     restart: unless-stopped

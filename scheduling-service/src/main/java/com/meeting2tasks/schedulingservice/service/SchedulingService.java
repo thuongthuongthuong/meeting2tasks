@@ -7,6 +7,8 @@ import com.meeting2tasks.schedulingservice.repository.SprintRepository;
 import com.meeting2tasks.schedulingservice.repository.userRepository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
@@ -86,7 +88,7 @@ public class SchedulingService {
                 System.out.println("Fetching tasks for milestoneId: " + milestoneId);
                 List<TaskDTO> milestoneTasks = restTemplate.exchange(
                         "http://task-service:8081/api/tasks/milestone/" + milestoneId,
-                        org.springframework.http.HttpMethod.GET,
+                        HttpMethod.GET,
                         null,
                         new ParameterizedTypeReference<List<TaskDTO>>() {}
                 ).getBody();
@@ -149,6 +151,9 @@ public class SchedulingService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No users found for project with ID: " + projectId);
         }
 
+        // Lấy tất cả sprintIds của project
+        List<String> sprintIds = getSprintIdsByProjectId(projectId);
+
         List<AiTaskWithUsers> updatedTasks = new ArrayList<>();
         for (AiTask task : aiTasks) {
             AiTaskWithUsers taskWithUsers = new AiTaskWithUsers();
@@ -162,11 +167,77 @@ public class SchedulingService {
                 List<User> assignableUsers = projectUsers.stream()
                         .filter(user -> task.getRole().equals(user.getRole()))
                         .collect(Collectors.toList());
-                taskWithUsers.setAssignableUsers(assignableUsers);
+
+                // Gọi API từ task-service để lấy thông tin task
+                List<User> enrichedUsers = new ArrayList<>();
+                for (User user : assignableUsers) {
+                    // Lấy totalTasksAcrossProjects
+                    Integer totalTasks = restTemplate.getForObject(
+                            "http://task-service:8081/api/tasks/user/" + user.get_id() + "/total-count",
+                            Integer.class
+                    );
+
+                    // Lấy tasksInCurrentProject: đếm tất cả task trong các sprint của project
+                    int tasksInProject = 0;
+                    if (sprintIds != null && !sprintIds.isEmpty()) {
+                        for (String sprintId : sprintIds) {
+                            Integer tasksInSprint = restTemplate.getForObject(
+                                    "http://task-service:8081/api/tasks/user/" + user.get_id() + "/sprint/" + sprintId + "/count",
+                                    Integer.class
+                            );
+                            tasksInProject += (tasksInSprint != null ? tasksInSprint : 0);
+                        }
+                    }
+
+                    // Cập nhật user với thông tin task
+                    user.setTasksInCurrentProject(tasksInProject);
+                    user.setTotalTasksAcrossProjects(totalTasks != null ? totalTasks : 0);
+                    enrichedUsers.add(user);
+                }
+
+                // Chuẩn bị danh sách để gửi đến ai-service
+                AiTaskWithUsers tempTaskWithUsers = new AiTaskWithUsers(task.getTitle(), task.getDescription(), task.getRole(), enrichedUsers);
+                List<AiTaskWithUsers> tempList = new ArrayList<>();
+                tempList.add(tempTaskWithUsers);
+
+                // Bọc danh sách trong TaskDataRequest để gửi đúng định dạng mà ai-service mong đợi
+                TaskDataRequest requestBody = new TaskDataRequest(tempList);
+
+                // Gọi ai-service để lấy match_percentage qua endpoint /process-tasks-with-data
+                HttpEntity<TaskDataRequest> requestEntity = new HttpEntity<>(requestBody);
+                List<AiTaskWithUsers> matchedTasks = restTemplate.exchange(
+                        "http://ai-service:8000/process-tasks-with-data",
+                        HttpMethod.POST,
+                        requestEntity,
+                        new ParameterizedTypeReference<List<AiTaskWithUsers>>() {}
+                ).getBody();
+
+                // Kết hợp kết quả từ ai-service và khôi phục _id
+                if (matchedTasks != null && !matchedTasks.isEmpty()) {
+                    List<User> finalUsers = matchedTasks.get(0).getAssignableUsers();
+                    for (User user : finalUsers) {
+                        // Tìm user gốc từ enrichedUsers dựa trên id để khôi phục _id
+                        User originalUser = enrichedUsers.stream()
+                                .filter(u -> u.getId().equals(user.getId()))
+                                .findFirst().orElse(user);
+                        user.set_id(originalUser.get_id()); // Khôi phục _id
+                        user.setTasksInCurrentProject(originalUser.getTasksInCurrentProject());
+                        user.setTotalTasksAcrossProjects(originalUser.getTotalTasksAcrossProjects());
+                    }
+                    taskWithUsers.setAssignableUsers(finalUsers);
+                } else {
+                    taskWithUsers.setAssignableUsers(enrichedUsers);
+                }
             }
             updatedTasks.add(taskWithUsers);
         }
 
         return updatedTasks;
+    }
+
+    // Phương thức mở rộng để thêm setter cho User (nếu cần)
+    private void setUserTaskMetrics(User user, Integer tasksInCurrentProject, Integer totalTasksAcrossProjects) {
+        user.setTasksInCurrentProject(tasksInCurrentProject);
+        user.setTotalTasksAcrossProjects(totalTasksAcrossProjects);
     }
 }

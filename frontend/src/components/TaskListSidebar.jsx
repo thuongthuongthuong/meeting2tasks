@@ -40,6 +40,7 @@ import StarIcon from '@mui/icons-material/Star';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import EditIcon from '@mui/icons-material/Edit';
+import PercentIcon from '@mui/icons-material/Percent';
 import { generateTasksFromMeetingNotes } from '../utils/api';
 
 const AISidebar = ({ onAddTask, projectId = 1 }) => {
@@ -56,9 +57,9 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
   const [editTask, setEditTask] = useState(null);
 
   const quickSuggestions = [
-    "Phân bổ task cho tuần này",
-    "Tối ưu hóa lịch trình",
-    "Gợi ý ưu tiên công việc"
+    "Assign tasks for this week",
+    "Optimize the schedule",
+    "Suggest task priorities"
   ];
 
   const handleSubmitPrompt = async () => {
@@ -76,9 +77,10 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
         title: task.title,
         description: task.description || '',
         role: task.role || 'Unassigned',
-        dueDate: "3 ngày",
+        dueDate: "3 days",
         priority: "medium",
-        type: "task"
+        type: "task",
+        assignableUsers: task.assignableUsers || []
       }));
       setSuggestions(mappedTasks);
     } catch (error) {
@@ -103,7 +105,8 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
       const assignedTasks = await response.json();
       setSuggestions(assignedTasks.map(task => ({
         ...task,
-        assignee: task.assignableUsers?.length > 0 ? task.assignableUsers[0] : null
+        assignee: task.assignableUsers?.length > 0 ? task.assignableUsers[0] : null,
+        assignableUsers: task.assignableUsers || []
       })));
     } catch (error) {
       console.error('Error assigning tasks:', error);
@@ -126,7 +129,7 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
 
       const updatedTask = assignedTasks[0];
       setSuggestions(suggestions.map(t =>
-        t.id === task.id ? { ...t, ...updatedTask, assignee: updatedTask.assignableUsers?.[0] || assignee } : t
+        t.id === task.id ? { ...t, ...updatedTask, assignee: updatedTask.assignableUsers?.[0] || assignee, assignableUsers: updatedTask.assignableUsers || [] } : t
       ));
       return updatedTask;
     } catch (error) {
@@ -188,7 +191,7 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
   const handleVoiceInput = () => {
     setIsListening(true);
     setTimeout(() => {
-      setPrompt("Gợi ý task cho team thiết kế");
+      setPrompt("Suggest tasks for the design team");
       setIsListening(false);
       handleSubmitPrompt();
     }, 2000);
@@ -233,17 +236,17 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
           <SmartToyIcon sx={{ mr: 1, color: '#9C27B0', filter: 'drop-shadow(0px 0px 3px rgba(156,39,176,0.3))' }} />
           <Typography variant="h6" sx={{ fontWeight: 500, background: 'linear-gradient(90deg, #9C27B0, #2196F3)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>AI Assistant</Typography>
         </Box>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Để mình gợi ý vài task cho team nhé!</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Let me suggest some tasks for your team!</Typography>
         <Box sx={{ position: 'relative' }}>
           <TextField
             fullWidth
             size="medium"
-            placeholder="Nhập yêu cầu, ví dụ: 'Gợi ý task cho dự án X'"
+            placeholder="Enter your request, e.g., 'Suggest tasks for Project X'"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyPress={handleKeyPress}
             sx={{ mb: 1, '& .MuiOutlinedInput-root': { borderRadius: '12px', '&:hover fieldset': { borderColor: 'rgba(30, 144, 255, 0.5)' }, '&.Mui-focused fieldset': { borderColor: '#2196F3', boxShadow: '0 0 0 2px rgba(33, 150, 243, 0.1)' } } }}
-            InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ color: '#2196F3' }} /></InputAdornment>, endAdornment: <InputAdornment position="end"><IconButton size="small" onClick={handleVoiceInput} sx={{ mr: 0.5, color: 'rgba(0,0,0,0.54)' }}><InsertDriveFileIcon /></IconButton><IconButton size="small" onClick={handleVoiceInput} sx={{ mr: 0.5, color: isListening ? '#F44336' : 'rgba(0,0,0,0.54)', animation: isListening ? 'pulse 1s infinite' : 'none' }}><MicIcon /></IconButton><Button variant="contained" size="small" onClick={handleSubmitPrompt} endIcon={<SendIcon />} disabled={!prompt.trim() || isLoading} sx={{ borderRadius: '8px', background: '#00C9FF', textTransform: 'none', boxShadow: '0 2px 5px rgba(0, 201, 255, 0.2)', '&:hover': { boxShadow: '0 4px 10px rgba(0, 201, 255, 0.3)' } }}>{isLoading ? <CircularProgress size={24} /> : 'Gửi'}</Button></InputAdornment> }}
+            InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ color: '#2196F3' }} /></InputAdornment>, endAdornment: <InputAdornment position="end"><IconButton size="small" onClick={handleVoiceInput} sx={{ mr: 0.5, color: 'rgba(0,0,0,0.54)' }}><InsertDriveFileIcon /></IconButton><IconButton size="small" onClick={handleVoiceInput} sx={{ mr: 0.5, color: isListening ? '#F44336' : 'rgba(0,0,0,0.54)', animation: isListening ? 'pulse 1s infinite' : 'none' }}><MicIcon /></IconButton><Button variant="contained" size="small" onClick={handleSubmitPrompt} endIcon={<SendIcon />} disabled={!prompt.trim() || isLoading} sx={{ borderRadius: '8px', background: '#00C9FF', textTransform: 'none', boxShadow: '0 2px 5px rgba(0, 201, 255, 0.2)', '&:hover': { boxShadow: '0 4px 10px rgba(0, 201, 255, 0.3)' } }}>{isLoading ? <CircularProgress size={24} /> : 'Send'}</Button></InputAdornment> }}
           />
         </Box>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
@@ -253,8 +256,8 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
         </Box>
       </Box>
       <Box sx={{ display: 'flex', borderBottom: '1px solid rgba(0,0,0,0.08)', background: 'rgba(250,250,252,0.8)', position: 'relative', zIndex: 1 }}>
-        <Button sx={{ flexGrow: 1, py: 1, borderRadius: 0, borderBottom: activeTab === 'suggestions' ? '2px solid #2196F3' : 'none', color: activeTab === 'suggestions' ? '#2196F3' : 'text.secondary', fontWeight: activeTab === 'suggestions' ? 500 : 400 }} onClick={() => setActiveTab('suggestions')}>Gợi ý</Button>
-        <Button sx={{ flexGrow: 1, py: 1, borderRadius: 0, borderBottom: activeTab === 'history' ? '2px solid #2196F3' : 'none', color: activeTab === 'history' ? '#2196F3' : 'text.secondary', fontWeight: activeTab === 'history' ? 500 : 400 }} onClick={() => setActiveTab('history')}>Lịch sử</Button>
+        <Button sx={{ flexGrow: 1, py: 1, borderRadius: 0, borderBottom: activeTab === 'suggestions' ? '2px solid #2196F3' : 'none', color: activeTab === 'suggestions' ? '#2196F3' : 'text.secondary', fontWeight: activeTab === 'suggestions' ? 500 : 400 }} onClick={() => setActiveTab('suggestions')}>Suggestions</Button>
+        <Button sx={{ flexGrow: 1, py: 1, borderRadius: 0, borderBottom: activeTab === 'history' ? '2px solid #2196F3' : 'none', color: activeTab === 'history' ? '#2196F3' : 'text.secondary', fontWeight: activeTab === 'history' ? 500 : 400 }} onClick={() => setActiveTab('history')}>History</Button>
       </Box>
       <Box sx={{ flexGrow: 1, overflow: 'auto', position: 'relative', zIndex: 1 }}>
         {activeTab === 'suggestions' && (
@@ -262,14 +265,14 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
             {isLoading ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', flexDirection: 'column' }}>
                 <CircularProgress size={40} sx={{ mb: 2, color: '#9C27B0' }} />
-                <Typography variant="body2" color="text.secondary">Đang phân tích và tạo gợi ý...</Typography>
+                <Typography variant="body2" color="text.secondary">Analyzing and generating suggestions...</Typography>
               </Box>
             ) : suggestions.length > 0 ? (
               <>
                 <Box sx={{ mx: 2, mt: 2 }}>
-                  <Alert severity="warning" variant="outlined" sx={{ fontSize: '0.875rem' }}>Các gợi ý dưới đây được tạo bởi AI. Vui lòng kiểm tra lại kỹ lưỡng trước khi sử dụng.</Alert>
+                  <Alert severity="warning" variant="outlined" sx={{ fontSize: '0.875rem' }}>The suggestions below are AI-generated. Please review carefully before using.</Alert>
                 </Box>
-                <Button variant="contained" onClick={handleAssignAll} sx={{ m: 2, background: '#00C9FF', textTransform: 'none', '&:hover': { background: '#00B0FF' } }} disabled={isLoading}>Phân công toàn bộ</Button>
+                <Button variant="contained" onClick={handleAssignAll} sx={{ m: 2, background: '#00C9FF', textTransform: 'none', '&:hover': { background: '#00B0FF' } }} disabled={isLoading}>Assign All</Button>
                 <List disablePadding>
                   {suggestions.map((task, index) => (
                     <Fade in={true} key={task.id} style={{ transitionDelay: `${index * 100}ms` }}>
@@ -308,33 +311,40 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
                                 <Typography variant="body2" color="text.secondary">
                                   {task.description}
                                 </Typography>
-                                <Chip 
-                                  icon={<PersonIcon sx={{ fontSize: '0.8rem !important' }} />} 
-                                  label={task.assignee ? task.assignee.name : task.role} 
-                                  size="small" 
-                                  variant="outlined" 
-                                  sx={{ mt: 1, height: 20, fontSize: '0.65rem', borderColor: 'rgba(0,0,0,0.1)' }} 
-                                />
+                                {task.assignableUsers && task.assignableUsers.length > 0 && (
+                                  <Box sx={{ mt: 1 }}>
+                                    {task.assignableUsers.map((user, idx) => (
+                                      <Chip
+                                        key={idx}
+                                        icon={<PersonIcon sx={{ fontSize: '0.8rem !important' }} />}
+                                        label={`${user.name} (${user.match_percentage || 0}%)`}
+                                        size="small"
+                                        variant="outlined"
+                                        sx={{ mr: 0.5, height: 20, fontSize: '0.65rem', borderColor: 'rgba(0,0,0,0.1)' }}
+                                      />
+                                    ))}
+                                  </Box>
+                                )}
                               </Box>
                             }
                           />
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <Tooltip title="Chỉnh sửa">
+                            <Tooltip title="Edit">
                               <IconButton size="small" onClick={() => handleEditTask(task)} sx={{ color: '#FF9800' }}>
                                 <EditIcon />
                               </IconButton>
                             </Tooltip>
-                            <Tooltip title="Chấp nhận">
+                            <Tooltip title="Accept">
                               <IconButton size="small" onClick={() => handleAcceptTask(task)} sx={{ color: '#4CAF50' }}>
                                 <CheckCircleIcon />
                               </IconButton>
                             </Tooltip>
-                            <Tooltip title="Bỏ qua">
+                            <Tooltip title="Reject">
                               <IconButton size="small" onClick={() => setSuggestions(suggestions.filter(s => s.id !== task.id))} sx={{ color: '#F44336' }}>
                                 <CancelIcon />
                               </IconButton>
                             </Tooltip>
-                            <Tooltip title="Phân công">
+                            <Tooltip title="Assign">
                               <IconButton size="small" onClick={() => handleAssignTask(task)} sx={{ color: '#2196F3' }}>
                                 <AssignmentIcon />
                               </IconButton>
@@ -349,8 +359,8 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
             ) : (
               <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '70%', p: 3 }}>
                 <StarIcon sx={{ fontSize: 48, color: 'rgba(156,39,176,0.2)', mb: 2 }} />
-                <Typography variant="body1" color="text.secondary" sx={{ textAlign: 'center' }}>Nhập yêu cầu để AI gợi ý task cho bạn</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 1 }}>AI sẽ phân tích yêu cầu và đề xuất các task phù hợp</Typography>
+                <Typography variant="body1" color="text.secondary" sx={{ textAlign: 'center' }}>Enter a request to get AI task suggestions</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 1 }}>The AI will analyze your request and suggest relevant tasks</Typography>
               </Box>
             )}
           </>
@@ -361,36 +371,43 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
               <React.Fragment key={index}>
                 <ListItem button onClick={() => { setPrompt(item.text); setActiveTab('suggestions'); }}>
                   <ListItemIcon sx={{ minWidth: 36 }}><HistoryIcon fontSize="small" color="action" /></ListItemIcon>
-                  <ListItemText primary={item.text} secondary={new Date(item.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })} primaryTypographyProps={{ noWrap: true, variant: 'body2' }} />
+                  <ListItemText primary={item.text} secondary={new Date(item.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })} primaryTypographyProps={{ noWrap: true, variant: 'body2' }} />
                 </ListItem>
                 <Divider component="li" />
               </React.Fragment>
             )) : (
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50%', p: 3 }}>
-                <Typography variant="body2" color="text.secondary">Lịch sử trống</Typography>
+                <Typography variant="body2" color="text.secondary">History is empty</Typography>
               </Box>
             )}
           </List>
         )}
       </Box>
       <Box sx={{ p: 1.5, borderTop: '1px solid rgba(0,0,0,0.08)', display: 'flex', justifyContent: 'space-between', position: 'relative', zIndex: 1, backgroundColor: 'rgba(250,250,252,0.9)' }}>
-        <Button size="small" startIcon={<InsertChartIcon />} sx={{ textTransform: 'none', color: '#2196F3' }}>Phân tích dự án</Button>
+        <Button size="small" startIcon={<InsertChartIcon />} sx={{ textTransform: 'none', color: '#2196F3' }}>Analyze Project</Button>
         <Typography variant="caption" color="text.secondary">Powered by AI Assistant</Typography>
       </Box>
       <Dialog open={assignDialogOpen} onClose={handleCloseAssignDialog} maxWidth="xs" fullWidth>
-        <DialogTitle>Phân công Task: {selectedTask?.title}</DialogTitle>
+        <DialogTitle>Assign Task: {selectedTask?.title}</DialogTitle>
         <DialogContent>
           {selectedTask?.assignee && (
             <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" color="text.secondary">Người được đề xuất hiện tại:</Typography>
+              <Typography variant="subtitle2" color="text.secondary">Current Recommended Assignee:</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
                 <Avatar src={selectedTask.assignee.avatar} sx={{ width: 24, height: 24, mr: 1 }} />
                 <Typography variant="body2">{selectedTask.assignee.name}</Typography>
+                <Chip
+                  icon={<PercentIcon sx={{ fontSize: '0.8rem !important' }} />}
+                  label={`${selectedTask.assignee.match_percentage || 0}%`}
+                  size="small"
+                  variant="outlined"
+                  sx={{ ml: 1, height: 20, fontSize: '0.65rem', borderColor: 'rgba(0,0,0,0.1)' }}
+                />
               </Box>
             </Box>
           )}
           <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-            Chọn người để phân công:
+            Select an assignee:
           </Typography>
           {isLoading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
@@ -411,30 +428,37 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
                 >
                   <Avatar src={user.avatar} sx={{ width: 24, height: 24, mr: 1 }} />
                   <ListItemText primary={user.name} />
+                  <Chip
+                    icon={<PercentIcon sx={{ fontSize: '0.8rem !important' }} />}
+                    label={`${user.match_percentage || 0}%`}
+                    size="small"
+                    variant="outlined"
+                    sx={{ ml: 1, height: 20, fontSize: '0.65rem', borderColor: 'rgba(0,0,0,0.1)' }}
+                  />
                 </ListItem>
               ))}
             </List>
           ) : (
-            <Typography variant="body2" color="text.secondary">Không có người dùng phù hợp để phân công.</Typography>
+            <Typography variant="body2" color="text.secondary">No suitable users available for assignment.</Typography>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseAssignDialog}>Đóng</Button>
+          <Button onClick={handleCloseAssignDialog}>Close</Button>
         </DialogActions>
       </Dialog>
       <Dialog open={editDialogOpen} onClose={handleCloseEditDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>Chỉnh sửa Task</DialogTitle>
+        <DialogTitle>Edit Task</DialogTitle>
         <DialogContent>
           <TextField
             fullWidth
-            label="Tiêu đề"
+            label="Title"
             value={editTask?.title || ''}
             onChange={(e) => setEditTask({ ...editTask, title: e.target.value })}
             sx={{ mt: 2 }}
           />
           <TextField
             fullWidth
-            label="Mô tả"
+            label="Description"
             value={editTask?.description || ''}
             onChange={(e) => setEditTask({ ...editTask, description: e.target.value })}
             multiline
@@ -443,7 +467,7 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
           />
           {editTask?.assignableUsers?.length > 0 && (
             <Box sx={{ mt: 2 }}>
-              <Typography variant="subtitle1" sx={{ mb: 1 }}>Người được phân công</Typography>
+              <Typography variant="subtitle1" sx={{ mb: 1 }}>Assigned Users</Typography>
               <List dense>
                 {editTask.assignableUsers.map((user) => (
                   <ListItem
@@ -458,6 +482,13 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
                   >
                     <Avatar src={user.avatar} sx={{ width: 24, height: 24, mr: 1 }} />
                     <ListItemText primary={user.name} />
+                    <Chip
+                      icon={<PercentIcon sx={{ fontSize: '0.8rem !important' }} />}
+                      label={`${user.match_percentage || 0}%`}
+                      size="small"
+                      variant="outlined"
+                      sx={{ ml: 1, height: 20, fontSize: '0.65rem', borderColor: 'rgba(0,0,0,0.1)' }}
+                    />
                   </ListItem>
                 ))}
               </List>
@@ -465,8 +496,8 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseEditDialog}>Hủy</Button>
-          <Button onClick={handleSaveEdit} variant="contained">Lưu</Button>
+          <Button onClick={handleCloseEditDialog}>Cancel</Button>
+          <Button onClick={handleSaveEdit} variant="contained">Save</Button>
         </DialogActions>
       </Dialog>
     </Paper>
