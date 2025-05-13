@@ -30,18 +30,27 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import InsertChartIcon from '@mui/icons-material/InsertChart';
 import PersonIcon from '@mui/icons-material/Person';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import HistoryIcon from '@mui/icons-material/History';
 import StarIcon from '@mui/icons-material/Star';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
+import { processMeetingNotes, assignUserToTask, addTask } from '../utils/api';
+const generateRandomId = (length = 20) => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
 
-const AISidebar = ({ onAddTask, teamMembers, projectName }) => {
+const AISidebar = ({ onAddTask, teamMembers, projectName, id, sprintId }) => {
   const [prompt, setPrompt] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [promptHistory, setPromptHistory] = useState([]);
   const [activeTab, setActiveTab] = useState('suggestions');
-  const [showAnimation, setShowAnimation] = useState(false);
 
   // Danh sách gợi ý nhanh
   const quickSuggestions = [
@@ -103,21 +112,20 @@ const AISidebar = ({ onAddTask, teamMembers, projectName }) => {
   ];
 
   // Xử lý khi gửi prompt
-  const handleSubmitPrompt = () => {
+  const handleSubmitPrompt = async () => {
     if (!prompt.trim()) return;
 
     setIsLoading(true);
-    setShowAnimation(true);
-
+    const response = await processMeetingNotes(prompt);
+    console.log(response);
+      const user = await assignUserToTask(+id, response);
+      
+      console.log(user);
+    setSuggestions(user);
     // Lưu prompt vào lịch sử
     setPromptHistory([{ text: prompt, timestamp: new Date() }, ...promptHistory]);
-
-    // Giả lập thời gian phản hồi của AI
-    setTimeout(() => {
-      setSuggestions(demoTasks);
-      setIsLoading(false);
-    }, 1500);
-
+    
+    setIsLoading(false);
     setPrompt('');
   };
 
@@ -131,7 +139,6 @@ const AISidebar = ({ onAddTask, teamMembers, projectName }) => {
   // Xử lý khi chọn gợi ý nhanh
   const handleQuickSuggestion = (suggestion) => {
     setPrompt(suggestion);
-    handleSubmitPrompt();
   };
 
   // Giả lập voice input
@@ -146,33 +153,42 @@ const AISidebar = ({ onAddTask, teamMembers, projectName }) => {
   };
 
   // Xử lý khi chấp nhận task
-  const handleAcceptTask = (task) => {
+  const handleAcceptTask = async (task) => {
+    task.id = generateRandomId(), 
+    task.userId = task?.assignableUsers[0]?.id;
+    task.priority = 'Low';
+    task.story_points = 1;
+    task.type = 'Unknown';
+    task.status = 'To Do';
+    await addTask(sprintId, task);
     onAddTask(task);
     // Xóa khỏi danh sách gợi ý
-    setSuggestions(suggestions.filter(s => s.id !== task.id));
+    setSuggestions(suggestions.filter(s => s.title !== task.title));
   };
 
-  // Animation cho background
-  useEffect(() => {
-    if (showAnimation) {
-      const timer = setTimeout(() => {
-        setShowAnimation(false);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [showAnimation]);
+  const handleAcceptAllTasks = async () => {
+  for (const task of suggestions) {
+    const taskToAdd = {
+      ...task,
+      id: generateRandomId(),
+      userId: task?.assignableUsers[0]?.id,
+      priority: 'Low',
+      story_points: 1,
+      type: 'Unknown',
+      status: 'To Do',
+    };
 
-  // Hiển thị icon dựa trên loại task
-  const getTaskIcon = (type) => {
-    switch(type) {
-      case 'design':
-        return <LightbulbIcon sx={{ color: '#FF9800' }} />;
-      case 'content':
-        return <InsertChartIcon sx={{ color: '#2196F3' }} />;
-      default:
-        return <SmartToyIcon sx={{ color: '#9C27B0' }} />;
+    try {
+      await addTask(sprintId, taskToAdd);
+      onAddTask(taskToAdd); // Giống như handleAcceptTask
+    } catch (error) {
+      console.error(`Failed to add task "${task.title}":`, error);
     }
-  };
+  }
+
+  // Xóa tất cả khỏi gợi ý sau khi xử lý xong
+  setSuggestions([]);
+};
 
   // Màu cho priority
   const getPriorityColor = (priority) => {
@@ -212,11 +228,11 @@ const AISidebar = ({ onAddTask, teamMembers, projectName }) => {
           right: 0,
           bottom: 0,
           zIndex: 0,
-          opacity: showAnimation ? 0.1 : 0,
+          opacity: isLoading ? 0.1 : 0,
           transition: 'opacity 2s ease',
           background: 'radial-gradient(circle, rgba(138,43,226,0.1) 0%, rgba(0,0,0,0) 70%)',
           pointerEvents: 'none',
-          animation: showAnimation ? 'pulse 2s infinite' : 'none',
+          animation: isLoading ? 'pulse 2s infinite' : 'none',
           '@keyframes pulse': {
             '0%': {
               transform: 'scale(0.95)',
@@ -419,10 +435,30 @@ const AISidebar = ({ onAddTask, teamMembers, projectName }) => {
                     Các gợi ý dưới đây được tạo bởi AI. Vui lòng kiểm tra lại kỹ lưỡng trước khi sử dụng.
                   </Alert>
                 </Box>
-              
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1.5, mb: 0.5 }}>
+                  <Button 
+                    variant="outlined" 
+                    size="small"
+                    startIcon={<AddCircleOutlineIcon />}
+                    onClick={() => handleAcceptAllTasks()} 
+                    sx={{ 
+                      borderRadius: '6px',
+                      textTransform: 'none',
+                      fontSize: '0.8rem',
+                      color: '#4CAF50',
+                      borderColor: '#4CAF50',
+                      '&:hover': { 
+                        backgroundColor: 'rgba(76, 175, 80, 0.08)',
+                        borderColor: '#4CAF50' 
+                      }
+                    }}
+                  >
+                    Thêm tất cả gợi ý
+                  </Button>
+                </Box>
               <List disablePadding>
                 {suggestions.map((task, index) => (
-                  <Fade in={true} key={task.id} style={{ transitionDelay: `${index * 100}ms` }}>
+                  <Fade in={true} key={index} style={{ transitionDelay: `${index * 100}ms` }}>
                     <Paper
                       elevation={1}
                       sx={{
@@ -443,7 +479,7 @@ const AISidebar = ({ onAddTask, teamMembers, projectName }) => {
                         left: 0, 
                         width: '4px', 
                         height: '100%',
-                        backgroundColor: getPriorityColor(task.priority)
+                        backgroundColor: getPriorityColor(task?.priority)
                       }} />
                       
                       <ListItem
@@ -467,7 +503,7 @@ const AISidebar = ({ onAddTask, teamMembers, projectName }) => {
                               <IconButton 
                                 edge="end" 
                                 size="small"
-                                onClick={() => setSuggestions(suggestions.filter(s => s.id !== task.id))}
+                                onClick={() => setSuggestions(suggestions.filter(s => s.title !== task?.title))}
                                 sx={{ 
                                   color: '#F44336',
                                   '&:hover': { backgroundColor: 'rgba(244,67,54,0.1)' }
@@ -479,66 +515,38 @@ const AISidebar = ({ onAddTask, teamMembers, projectName }) => {
                           </Box>
                         }
                       >
-                        <ListItemIcon sx={{ minWidth: 40 }}>
-                          {getTaskIcon(task.type)}
-                        </ListItemIcon>
                         
                         <ListItemText
                           primary={
                             <>
                               <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
-                                <Typography variant="caption" color="text.secondary" sx={{ mr: 1 }}>
-                                  {task.id}
+                                <Typography variant="subtitle2" color="text.secondary" sx={{ mr: 1 }}>
+                                  {task?.title}
                                 </Typography>
-                                <DragIndicatorIcon 
-                                  fontSize="small" 
-                                  sx={{ 
-                                    color: 'text.disabled',
-                                    cursor: 'grab'
-                                  }} 
-                                />
                               </Box>
-                              <Typography variant="subtitle2">{task.title}</Typography>
+                              <Typography variant="caption">{task?.description}</Typography>
                             </>
                           }
                           secondary={
                             <Box sx={{ display: 'flex', alignItems: 'center', mt: 1, flexWrap: 'wrap', gap: 1 }}>
+                              {task.assignableUsers?.map((user) => (
                               <Chip
+                                key={user.id}
                                 icon={<PersonIcon sx={{ fontSize: '0.8rem !important' }} />}
-                                avatar={<Avatar src={task.assignee.avatar} sx={{ width: 16, height: 16 }} />}
-                                label={task.assignee.name}
+                                avatar={<Avatar src={user.avatar} sx={{ width: 16, height: 16 }} />}
+                                label={user.name}
                                 size="small"
                                 variant="outlined"
-                                sx={{ 
-                                  height: 20, 
+                                sx={{
+                                  height: 20,
                                   fontSize: '0.65rem',
-                                  borderColor: 'rgba(0,0,0,0.1)'
+                                  borderColor: 'rgba(0,0,0,0.1)',
+                                  mr: 0.5, // margin giữa các chips
+                                  mb: 0.5
                                 }}
                               />
-                              
-                              <Chip
-                                icon={<AccessTimeIcon sx={{ fontSize: '0.8rem !important' }} />}
-                                label={task.dueDate}
-                                size="small"
-                                variant="outlined"
-                                sx={{ 
-                                  height: 20, 
-                                  fontSize: '0.65rem',
-                                  borderColor: 'rgba(0,0,0,0.1)'
-                                }}
-                              />
-                              
-                              <Chip
-                                label={task.priority.toUpperCase()}
-                                size="small"
-                                sx={{ 
-                                  height: 20, 
-                                  fontSize: '0.65rem',
-                                  backgroundColor: `${getPriorityColor(task.priority)}20`,
-                                  color: getPriorityColor(task.priority),
-                                  fontWeight: 500
-                                }}
-                              />
+                            ))}
+
                             </Box>
                           }
                           secondaryTypographyProps={{ component: 'div' }}

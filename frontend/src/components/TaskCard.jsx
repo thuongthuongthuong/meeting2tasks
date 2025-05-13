@@ -16,12 +16,12 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import RemoveIcon from '@mui/icons-material/Remove';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
-const TaskCard = ({ task, index, onClick }) => {
+const TaskCard = ({ task, index, onClick, user }) => {
   const getTypeIcon = () => {
     switch(task.type) {
-      case 'bug':
+      case 'Bug':
         return <BugReportIcon fontSize="small" sx={{ color: '#DE350B' }} />;
-      case 'task':
+      case 'Task':
       default:
         return <CheckBoxOutlineBlankIcon fontSize="small" sx={{ color: '#2684FF' }} />;
     }
@@ -29,11 +29,11 @@ const TaskCard = ({ task, index, onClick }) => {
   
   const getPriorityIcon = () => {
     switch(task.priority) {
-      case 'high':
+      case 'High':
         return <ArrowUpwardIcon fontSize="small" sx={{ color: '#DE350B' }} />;
-      case 'low':
+      case 'Low':
         return <ArrowDownwardIcon fontSize="small" sx={{ color: '#2684FF' }} />;
-      case 'medium':
+      case 'Medium':
       default:
         return <RemoveIcon fontSize="small" sx={{ color: '#FF9800' }} />;
     }
@@ -72,13 +72,12 @@ const TaskCard = ({ task, index, onClick }) => {
                   component="span"
                   sx={{ ml: 0.5, fontWeight: 500 }}
                 >
-                  {task.id}
+                  {task.id && task.id.length >= 9 ? task.id.slice(-9, -2) : task.id}
                 </Typography>
               </Box>
               <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center' }}>
-                {task.completed && <CheckCircleIcon fontSize="small" sx={{ color: '#00875A', mr: 0.5 }} />}
                 <Chip
-                  label={task.storyPoints}
+                  label={task.story_points}
                   size="small"
                   variant="outlined"
                   sx={{
@@ -95,8 +94,8 @@ const TaskCard = ({ task, index, onClick }) => {
             </Typography>
             <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
               <Avatar
-                alt={task.assignee.name}
-                src={task.assignee.avatar}
+                alt={user?.name}
+                src={user?.avatar}
                 sx={{ width: 24, height: 24 }}
               />
             </Box>

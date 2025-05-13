@@ -4,7 +4,7 @@ import { Box, Typography, Paper } from '@mui/material';
 import { Droppable } from 'react-beautiful-dnd';
 import TaskCard from './TaskCard';
 
-const StatusColumn = ({ title, id, count, tasks, onTaskClick }) => {
+const StatusColumn = ({ title, id, count, tasks, onTaskClick, users }) => {
   return (
     <Box sx={{ width: 280, flexShrink: 0 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
@@ -36,6 +36,7 @@ const StatusColumn = ({ title, id, count, tasks, onTaskClick }) => {
             {tasks.map((task, index) => (
               <TaskCard 
                 key={task.id} 
+                user={users.find(user => user.id === task.userId)}
                 task={task} 
                 index={index}
                 onClick={() => onTaskClick(task)}

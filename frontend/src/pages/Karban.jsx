@@ -37,17 +37,17 @@ import AddIcon from '@mui/icons-material/Add';
 import HistoryIcon from '@mui/icons-material/History';
 import { DragDropContext, Droppable } from 'react-beautiful-dnd';
 import StatusColumn from '../components/StatusColumn';
-import { users, mockSprints } from '../mockData/data';
+import { mockSprints } from '../mockData/data';
 import TaskDialog from '../components/TaskDialog';
 import AIAssistant from '../components/AIAssistant';
 import TaskListSidebar from '../components/TaskListSidebar';
 import { useParams } from 'react-router-dom';
-import { getUserByPRojectID } from '../utils/api';
+import { getUserByPRojectID, updateTask, getSprintByProjectID, getSprintDetails, addTask, deleteTask } from '../utils/api';
 //------------------------------------------------------
 
-function App() {
+export default function Karban() {
+  const { id } = useParams();
   const [anchorEl, setAnchorEl] = useState(null);
-  const [aiAnchor, setAiAnchor] = useState(null);
   const [sprints, setSprints] = useState(mockSprints);
   const [currentSprint, setCurrentSprint] = useState(sprints[0]);
   const [tasks, setTasks] = useState(currentSprint.tasks);
@@ -56,18 +56,50 @@ function App() {
   const [selectedTask, setSelectedTask] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
-  const { id } = useParams();
-  useEffect(() => {
-    const fetchUser = async () => {
+  const [users, setUsers] = useState([]);
+  const [todo, setTodo] = useState([]);
+  const [inProgress, setInProgress] = useState([]);
+  const [inReview, setInReview] = useState([]);
+  const [done, setDone] = useState([]);
+  const onAddTask= (task) => {
+    setTodo((prev) => [...prev, task]);
+  }
+
+  const fetchUser = async () => {
       try {
         const response = await getUserByPRojectID(id);
-        console.log("response", response.data);
+        setUsers(response.data);
       } catch (error) {
         console.error('Error fetching user:', error);
       }
     }
+  const fetchSprint = async () => {
+    try {
+      const response = await getSprintDetails('6818caaa141f65cabbb622a5');
+      setCurrentSprint(response.data);
+      console.log('Current Sprint:', response.data);
+      setTodo(response.data.tasks.filter(task => task.status === 'To Do'));
+      setInProgress(response.data.tasks.filter(task => task.status === 'In Progress'));
+      setInReview(response.data.tasks.filter(task => task.status === 'In Review'));  
+      setDone(response.data.tasks.filter(task => task.status === 'Done'));
+    } catch (error) {
+      console.error('Error fetching sprints:', error);
+    }
+  }
+  const fetchListSprint = async () => {
+    try {
+      const response = await getSprintByProjectID(id);
+      setSprints(response.data);
+    } catch (error) {
+      console.error('Error fetching sprints:', error);
+    }
+  }
+  useEffect(() => {
     fetchUser();
+    fetchListSprint();
+    fetchSprint();
   }, [id]);
+
   useEffect(() => {
     // Update tasks when current sprint changes
     setTasks(currentSprint.tasks);
@@ -79,14 +111,6 @@ function App() {
 
   const handleMenuClose = () => {
     setAnchorEl(null);
-  };
-
-  const handleAiMenuClick = (event) => {
-    setAiAnchor(event.currentTarget);
-  };
-
-  const handleAiMenuClose = () => {
-    setAiAnchor(null);
   };
 
   const handleOpenSprintDialog = () => {
@@ -112,148 +136,134 @@ function App() {
   };
 
   const onDragEnd = (result) => {
-    const { source, destination } = result;
-    
-    // Dropped outside the list
-    if (!destination) {
-      return;
+  const { source, destination } = result;
+  if (!destination) return;
+
+  if (
+    source.droppableId === destination.droppableId &&
+    source.index === destination.index
+  ) {
+    return;
+  }
+
+  // Get source and destination lists
+  const getList = (id) => {
+    switch (id) {
+      case 'todo':
+        return [...todo];
+      case 'inProgress':
+        return [...inProgress];
+      case 'inReview':
+        return [...inReview];
+      case 'done':
+        return [...done];
+      default:
+        return [];
     }
-    
-    // If dropped in the same position
-    if (
-      source.droppableId === destination.droppableId &&
-      source.index === destination.index
-    ) {
-      return;
-    }
-    
-    // Get task from source
-    const sourceColumn = source.droppableId;
-    const destColumn = destination.droppableId;
-    const taskToMove = tasks[sourceColumn][source.index];
-    
-    // Create new tasks state
-    const newTasks = { ...tasks };
-    
-    // Remove from source
-    newTasks[sourceColumn] = newTasks[sourceColumn].filter((_, index) => index !== source.index);
-    
-    // Add to destination at the end (ignore destination.index)
-    // This ensures the task always goes to the end of the column
-    if (sourceColumn !== destColumn) {
-      newTasks[destColumn] = [
-        ...newTasks[destColumn],
-        taskToMove
-      ];
-    } else {
-      // If in the same column, respect the original position
-      newTasks[destColumn] = [
-        ...newTasks[destColumn].slice(0, destination.index),
-        taskToMove,
-        ...newTasks[destColumn].slice(destination.index)
-      ];
-    }
-    
-    // Mark as completed if moved to done column
-    if (destColumn === 'done' && sourceColumn !== 'done') {
-      // Since we added it to the end, it's the last item in the array
-      newTasks[destColumn][newTasks[destColumn].length - 1] = {
-        ...newTasks[destColumn][newTasks[destColumn].length - 1],
-        completed: true
-      };
-    }
-    
-    // Remove completed property if moved from done column
-    if (sourceColumn === 'done' && destColumn !== 'done') {
-      // Since we added it to the end, it's the last item in the array
-      const { completed, ...taskWithoutCompleted } = newTasks[destColumn][newTasks[destColumn].length - 1];
-      newTasks[destColumn][newTasks[destColumn].length - 1] = taskWithoutCompleted;
-    }
-    
-    // Update state
-    setTasks(newTasks);
-    
-    // Update sprint data
-    const updatedSprints = sprints.map(sprint => {
-      if (sprint.id === currentSprint.id) {
-        return {
-          ...sprint,
-          tasks: newTasks
-        };
-      }
-      return sprint;
-    });
-    
-    setSprints(updatedSprints);
-    setCurrentSprint({ ...currentSprint, tasks: newTasks });
   };
 
-  // New function to add to App.js
-const handleAddTask = (newTask) => {
+  const setList = (id, list) => {
+    switch (id) {
+      case 'todo':
+        setTodo(list);
+        break;
+      case 'inProgress':
+        setInProgress(list);
+        break;
+      case 'inReview':
+        setInReview(list);
+        break;
+      case 'done':
+        setDone(list);
+        break;
+      default:
+        break;
+    }
+  };
+
+  const sourceList = getList(source.droppableId);
+  const destList = getList(destination.droppableId);
+  const taskToMove = sourceList[source.index];
+
+  // Remove from source
+  sourceList.splice(source.index, 1);
+
+  // Handle 'completed' property
+  let updatedTask = { ...taskToMove };
+  if (source.droppableId !== 'done' && destination.droppableId === 'done') {
+    updatedTask.completed = true;
+  }
+  if (source.droppableId === 'done' && destination.droppableId !== 'done') {
+    delete updatedTask.completed;
+  }
+
+  // Insert into destination
+  destList.splice(destination.index, 0, updatedTask);
+
+  // Update lists
+  setList(source.droppableId, sourceList);
+  setList(destination.droppableId, destList);
+};
+
+const handleEditTask = async (task) => {
+  const updatedTask = {
+    ...task,
+    id: selectedTask.id,
+    title: task.title,
+    description: task.description,
+    type: task.type,
+    priority: task.priority,
+    story_points: task.story_points,
+    userId: task.userId,
+    status: task.status,
+  };
+  console.log('Updated Task:', updatedTask);
+  const response = await updateTask(selectedTask.id, updatedTask);
+  console.log('Task updated:', response);
+  switch (selectedTask.status) {
+    case 'To Do':
+      setTodo((prev) => prev.map(t => (t.id === selectedTask.id ? updatedTask : t)));
+      break;
+    case 'In Progress':
+      setInProgress((prev) => prev.map(t => (t.id === selectedTask.id ? updatedTask : t)));
+      break;
+    case 'In Review':
+      setInReview((prev) => prev.map(t => (t.id === selectedTask.id ? updatedTask : t)));
+      break;
+    case 'Done':
+      setDone((prev) => prev.map(t => (t.id === selectedTask.id ? updatedTask : t)));
+      break;
+    default:
+      break;
+  }
+  setSelectedTask(null);
+  setTaskDialogOpen(false);
+  setTaskDetailOpen(false);
+  }
+
+const handleAddTask = async (newTask) => {
   // Generate a unique ID with format TASK-XXX
   const generateTaskId = () => {
-    const randomId = Math.floor(1000 + Math.random() * 9000).toString().substring(0, 3);
-    return `TASK-${randomId}`;
+    const randomId = Math.floor(1000 + Math.random() * 9000).toString().substring(0, 9);
+    return {randomId};
   };
   
   // Create the task object with default values plus user input
   const taskToAdd = {
     id: generateTaskId(),
-    type: newTask.type || 'task',
+    type: newTask.type || 'Task',
     title: newTask.title,
     description: newTask.description || '',
-    priority: newTask.priority || 'medium',
-    storyPoints: newTask.storyPoints || 1,
-    assignee: newTask.assignee || users[0], // Default to first user if not specified
-    completed: false
+    priority: newTask.priority || 'Medium',
+    story_points: newTask.storyPoints || 1,
+    userId: newTask.assignee || users[0],
   };
+  setTodo((prev) => [...prev, taskToAdd]);
   
-  // Add to todo column by default
-  const newTasks = {
-    ...tasks,
-    todo: [...tasks.todo, taskToAdd]
-  };
-  
-  // Update state
-  setTasks(newTasks);
-  
-  // Update sprint data
-  const updatedSprints = sprints.map(sprint => {
-    if (sprint.id === currentSprint.id) {
-      return {
-        ...sprint,
-        tasks: newTasks
-      };
-    }
-    return sprint;
-  });
-  
-  setSprints(updatedSprints);
-  setCurrentSprint({ ...currentSprint, tasks: newTasks });
-  
-  // Close dialog if needed
   setTaskDialogOpen(false);
+  await addTask(currentSprint?.sprint?.id, taskToAdd);
 };
 
-// Add Task Dialog Component
-
-
-  const getFilteredTasks = () => {
-    if (!searchQuery) return tasks;
-    
-    const filteredTasks = {};
-    
-    Object.keys(tasks).forEach(status => {
-      filteredTasks[status] = tasks[status].filter(task => 
-        task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        task.id.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    });
-    
-    return filteredTasks;
-  };
-
-  const filteredTasks = getFilteredTasks();
   
   // Calculate days remaining in sprint
   const calculateDaysRemaining = () => {
@@ -281,7 +291,26 @@ const handleAddTask = (newTask) => {
     setSprints(updatedSprints);
     setCurrentSprint({ ...currentSprint, status: 'completed' });
   };
-
+  const handleDeleteTask = async () => {
+    await deleteTask(selectedTask.id);
+    switch (selectedTask.status) {
+      case 'To Do':
+        setTodo((prev) => prev.filter(task => task.id !== selectedTask.id));
+        break;
+      case 'In Progress':
+        setInProgress((prev) => prev.filter(task => task.id !== selectedTask.id));
+        break;
+      case 'In Review':
+        setInReview((prev) => prev.filter(task => task.id !== selectedTask.id));
+        break;
+      case 'Done':
+        setDone((prev) => prev.filter(task => task.id !== selectedTask.id));
+        break;
+      default:
+        break;
+    }
+    setSelectedTask(null);
+  }
   return (
     <>
       <CssBaseline />
@@ -371,7 +400,7 @@ const handleAddTask = (newTask) => {
               variant="outlined"
               size="small"
               startIcon={<AddIcon />}
-              onClick={() => setTaskDialogOpen(true)}
+              onClick={() => {setSelectedTask(null); setTaskDialogOpen(true)}}
               sx={{ mr: 1 }}
             >
               Create task
@@ -391,35 +420,39 @@ const handleAddTask = (newTask) => {
             <StatusColumn 
               title="TO DO" 
               id="todo"
-              count={filteredTasks.todo.length} 
-              tasks={filteredTasks.todo}
+              users={users}
+              count={todo?.length} 
+              tasks={todo}
               onTaskClick={handleTaskClick}
             />
             <StatusColumn 
               title="IN PROGRESS" 
               id="inProgress"
-              count={filteredTasks.inProgress.length} 
-              tasks={filteredTasks.inProgress}
+              users={users}
+              count={inProgress?.length} 
+              tasks={inProgress}
               onTaskClick={handleTaskClick}
             />
             <StatusColumn 
               title="IN REVIEW" 
               id="inReview"
-              count={filteredTasks.inReview.length} 
-              tasks={filteredTasks.inReview}
+              users={users}
+              count={inReview?.length} 
+              tasks={inReview}
               onTaskClick={handleTaskClick}
             />
             <StatusColumn 
               title="DONE" 
               id="done"
-              count={filteredTasks.done.length} 
-              tasks={filteredTasks.done}
+              users={users}
+              count={done?.length} 
+              tasks={done}
               onTaskClick={handleTaskClick}
             />
             <TaskListSidebar 
-        tasks={filteredTasks} 
-        onTaskClick={handleTaskClick}
-        currentSprint={currentSprint}
+        id={id}
+        sprintId={currentSprint?.sprint?.id}
+        onAddTask={onAddTask}
       />
           </Box>
         </DragDropContext>
@@ -430,7 +463,7 @@ const handleAddTask = (newTask) => {
       <Dialog open={sprintDialogOpen} onClose={handleCloseSprintDialog}>
         <DialogTitle>Select Sprint</DialogTitle>
         <DialogContent>
-          <List sx={{ minWidth: 250 }}>
+          <List sx={{ minWidth: 350 }}>
             {sprints.map((sprint) => (
               <ListItem 
                 button 
@@ -472,7 +505,7 @@ const handleAddTask = (newTask) => {
         <Dialog open={taskDetailOpen} onClose={handleCloseTaskDetail} maxWidth="md" minWidth="500px">
           <DialogTitle>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              {selectedTask.id} - {selectedTask.title}
+              {selectedTask.id && selectedTask.id.length >= 9 ? selectedTask.id.slice(-9, -2) : selectedTask.id} - {selectedTask.title}
             </Box>
           </DialogTitle>
           <DialogContent>
@@ -488,16 +521,16 @@ const handleAddTask = (newTask) => {
                 </Box>
                 <Box sx={{ width: '50%' }}>
                   <Typography variant="body2" color="text.secondary">Story Points</Typography>
-                  <Typography variant="body1" sx={{ mb: 1 }}>{selectedTask.storyPoints}</Typography>
+                  <Typography variant="body1" sx={{ mb: 1 }}>{selectedTask.story_points}</Typography>
                   
                   <Typography variant="body2" color="text.secondary">Assignee</Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                     <Avatar 
-                      alt={selectedTask.assignee.name} 
-                      src={selectedTask.assignee.avatar} 
+                      alt={selectedTask?.assignee?.name} 
+                      src={selectedTask?.assignee?.avatar} 
                       sx={{ width: 24, height: 24, mr: 1 }} 
                     />
-                    <Typography variant="body1">{selectedTask.assignee.name}</Typography>
+                    <Typography variant="body1">{selectedTask?.assignee?.name}</Typography>
                   </Box>
                 </Box>
               </Box>
@@ -511,7 +544,8 @@ const handleAddTask = (newTask) => {
           </DialogContent>
           <DialogActions>
             <Button onClick={handleCloseTaskDetail}>Close</Button>
-            <Button variant="contained" color="primary">Edit</Button>
+            <Button variant="contained" onClick={handleDeleteTask} color="error">Delete</Button>
+            <Button variant="contained" color="primary" onClick={() => setTaskDialogOpen(true)}>Edit</Button>
           </DialogActions>
         </Dialog>
       )}
@@ -521,10 +555,10 @@ const handleAddTask = (newTask) => {
         onClose={() => setTaskDialogOpen(false)}
         onAdd={handleAddTask}
         users={users}
+        task={selectedTask}
+        onEdit={handleEditTask}
       />
       {/* <AIAssistant/> */}
       </>
   );
 }
-
-export default App;
