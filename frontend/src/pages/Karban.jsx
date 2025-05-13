@@ -50,6 +50,7 @@ export default function Karban() {
   const [anchorEl, setAnchorEl] = useState(null);
   const [sprints, setSprints] = useState(mockSprints);
   const [currentSprint, setCurrentSprint] = useState(sprints[0]);
+  const [currentSprintId, setCurrentSprintId] = useState(currentSprint?.sprint?.id);
   const [tasks, setTasks] = useState(currentSprint.tasks);
   const [sprintDialogOpen, setSprintDialogOpen] = useState(false);
   const [taskDetailOpen, setTaskDetailOpen] = useState(false);
@@ -75,9 +76,8 @@ export default function Karban() {
     }
   const fetchSprint = async () => {
     try {
-      const response = await getSprintDetails('6818caaa141f65cabbb622a5');
+      const response = await getSprintDetails(currentSprintId);
       setCurrentSprint(response.data);
-      console.log('Current Sprint:', response.data);
       setTodo(response.data.tasks.filter(task => task.status === 'To Do'));
       setInProgress(response.data.tasks.filter(task => task.status === 'In Progress'));
       setInReview(response.data.tasks.filter(task => task.status === 'In Review'));  
@@ -90,6 +90,8 @@ export default function Karban() {
     try {
       const response = await getSprintByProjectID(id);
       setSprints(response.data);
+      setCurrentSprintId(response.data[response.data.length - 1]);
+      console.log('Sprints:', response.data);
     } catch (error) {
       console.error('Error fetching sprints:', error);
     }
@@ -102,9 +104,8 @@ export default function Karban() {
 
   useEffect(() => {
     // Update tasks when current sprint changes
-    setTasks(currentSprint.tasks);
-  }, [currentSprint]);
-
+    fetchSprint();
+  }, [currentSprintId]);
   const handleMenuClick = (event) => {
     setAnchorEl(event.currentTarget);
   };
@@ -122,7 +123,7 @@ export default function Karban() {
   };
 
   const handleChangeSprint = (sprint) => {
-    setCurrentSprint(sprint);
+    setCurrentSprintId(sprint);
     handleCloseSprintDialog();
   };
 
@@ -135,7 +136,7 @@ export default function Karban() {
     setTaskDetailOpen(false);
   };
 
-  const onDragEnd = (result) => {
+  const onDragEnd = async (result) => {
   const { source, destination } = result;
   if (!destination) return;
 
@@ -180,11 +181,28 @@ export default function Karban() {
         break;
     }
   };
+  const getStatus = (id) => {
+    switch (id) {
+      case 'todo':
+        return 'To Do';
+      case 'inProgress':
+        return 'In Progress';
+      case 'inReview':
+        return 'In Review';
+      case 'done':
+        return 'Done';
+      default:
+        return '';
+    }
+  };
 
   const sourceList = getList(source.droppableId);
   const destList = getList(destination.droppableId);
   const taskToMove = sourceList[source.index];
-
+  await updateTask(taskToMove.id, {
+    ...taskToMove,
+    status: getStatus(destination.droppableId),
+  });
   // Remove from source
   sourceList.splice(source.index, 1);
 
@@ -217,9 +235,7 @@ const handleEditTask = async (task) => {
     userId: task.userId,
     status: task.status,
   };
-  console.log('Updated Task:', updatedTask);
   const response = await updateTask(selectedTask.id, updatedTask);
-  console.log('Task updated:', response);
   switch (selectedTask.status) {
     case 'To Do':
       setTodo((prev) => prev.map(t => (t.id === selectedTask.id ? updatedTask : t)));
@@ -326,7 +342,7 @@ const handleAddTask = async (newTask) => {
               onClick={handleOpenSprintDialog}
               startIcon={<HistoryIcon />}
             >
-              {currentSprint.name}
+               {currentSprint?.sprint?.name}
             </Button>
             <Box sx={{ flexGrow: 1 }} />
             {currentSprint.status !== 'completed' && (
@@ -467,30 +483,11 @@ const handleAddTask = async (newTask) => {
             {sprints.map((sprint) => (
               <ListItem 
                 button 
-                key={sprint.id} 
+                key={sprint} 
                 onClick={() => handleChangeSprint(sprint)}
-                selected={sprint.id === currentSprint.id}
+                selected={sprint === currentSprint?.sprint?.id}
               >
-                <ListItemText 
-                  primary={sprint.name} 
-                  secondary={`${sprint.startDate} to ${sprint.endDate}`} 
-                />
-                {sprint.status === 'completed' && (
-                  <Chip 
-                    label="Completed" 
-                    color="success" 
-                    size="small" 
-                    variant="outlined" 
-                  />
-                )}
-                {sprint.status === 'active' && (
-                  <Chip 
-                    label="Active" 
-                    color="primary" 
-                    size="small" 
-                    variant="outlined" 
-                  />
-                )}
+                {sprint}
               </ListItem>
             ))}
           </List>

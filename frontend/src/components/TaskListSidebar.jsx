@@ -58,69 +58,13 @@ const AISidebar = ({ onAddTask, teamMembers, projectName, id, sprintId }) => {
     "Tối ưu hóa lịch trình",
     "Gợi ý ưu tiên công việc"
   ];
-
-  // Danh sách task mẫu (giả lập phản hồi từ AI)
-  const demoTasks = [
-    {
-      id: "AI-1",
-      title: "Thiết kế logo cho khách hàng X",
-      assignee: { id: 1, name: "Nam", avatar: "/api/placeholder/30/30" },
-      dueDate: "3 ngày",
-      priority: "high",
-      type: "design"
-    },
-    {
-      id: "AI-2",
-      title: "Tạo wireframe cho trang landing page",
-      assignee: { id: 2, name: "Lan", avatar: "/api/placeholder/30/30" },
-      dueDate: "2 ngày",
-      priority: "medium",
-      type: "design"
-    },
-    {
-      id: "AI-3",
-      title: "Viết nội dung cho trang giới thiệu",
-      assignee: { id: 3, name: "Hùng", avatar: "/api/placeholder/30/30" },
-      dueDate: "4 ngày",
-      priority: "low",
-      type: "content"
-    },
-    {
-      id: "AI-4",
-      title: "Viết nội dung cho trang giới thiệu",
-      assignee: { id: 3, name: "Hùng", avatar: "/api/placeholder/30/30" },
-      dueDate: "4 ngày",
-      priority: "low",
-      type: "content"
-    },
-    {
-      id: "AI-5",
-      title: "Viết nội dung cho trang giới thiệu",
-      assignee: { id: 3, name: "Hùng", avatar: "/api/placeholder/30/30" },
-      dueDate: "4 ngày",
-      priority: "low",
-      type: "content"
-    },
-    {
-      id: "AI-66",
-      title: "Viết nội dung cho trang giới thiệu",
-      assignee: { id: 3, name: "Hùng", avatar: "/api/placeholder/30/30" },
-      dueDate: "4 ngày",
-      priority: "low",
-      type: "content"
-    }
-  ];
-
   // Xử lý khi gửi prompt
   const handleSubmitPrompt = async () => {
     if (!prompt.trim()) return;
 
     setIsLoading(true);
     const response = await processMeetingNotes(prompt);
-    console.log(response);
       const user = await assignUserToTask(+id, response);
-      
-      console.log(user);
     setSuggestions(user);
     // Lưu prompt vào lịch sử
     setPromptHistory([{ text: prompt, timestamp: new Date() }, ...promptHistory]);

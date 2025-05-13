@@ -45,8 +45,6 @@ const TaskDialog = ({ open, onClose, onAdd, onEdit, users, task }) => {
       });
     }
   }, [task, users, open]);
-
-    console.log('TaskDialog', taskData);
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setTaskData(prev => ({
