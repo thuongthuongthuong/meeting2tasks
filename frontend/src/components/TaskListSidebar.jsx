@@ -99,11 +99,12 @@ const AISidebar = ({ onAddTask, teamMembers, projectName, id, sprintId }) => {
   // Xử lý khi chấp nhận task
   const handleAcceptTask = async (task) => {
     task.id = generateRandomId(), 
-    task.userId = task?.assignableUsers[0]?.id;
+    task.userId = task?.assignableUsers[0]?._id;
     task.priority = 'Low';
     task.story_points = 1;
     task.type = 'Unknown';
     task.status = 'To Do';
+    console.log('Adding task:', task);
     await addTask(sprintId, task);
     onAddTask(task);
     // Xóa khỏi danh sách gợi ý
@@ -115,13 +116,13 @@ const AISidebar = ({ onAddTask, teamMembers, projectName, id, sprintId }) => {
     const taskToAdd = {
       ...task,
       id: generateRandomId(),
-      userId: task?.assignableUsers[0]?.id,
+      userId: task?.assignableUsers[0]?._id,
       priority: 'Low',
       story_points: 1,
       type: 'Unknown',
       status: 'To Do',
     };
-
+    console.log('Adding task:', taskToAdd);
     try {
       await addTask(sprintId, taskToAdd);
       onAddTask(taskToAdd); // Giống như handleAcceptTask
