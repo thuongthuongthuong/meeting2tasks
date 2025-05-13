@@ -4,9 +4,9 @@ from rag import base_model, index  # Ensure base_model and index are available f
 from utils import calculate_time_interval
 
 def upload_mongodb_to_pinecone(
-    mongo_uri = "mongodb+srv://DuyAnh:123@taskassignmentdb.o6geekw.mongodb.net/?retryWrites=true&w=majority",
-    db_name="task_assignment_db",
-    collection_name="project",
+    mongo_uri = "mongodb://localhost:27017",
+    db_name="meeting2tasks",
+    collection_name="projects",
     batch_size=100
 ):
     # Connect to MongoDB
@@ -22,18 +22,12 @@ def upload_mongodb_to_pinecone(
 
     for doc in cursor:
         desc = doc["description"]
-        doc_id = str(doc["_id"])  # Use ObjectId as unique ID
+        doc_id = str(doc["id"]) 
 
-        #   "startDate": {
-        #     "$date": "2025-02-11T21:14:59.091Z"
-        # },
-        # "endDate": {
-        #     "$date": "2025-03-16T15:13:54.084Z"
-        # }
 
         desc += " " + calculate_time_interval(
-            doc["startDate"].isoformat(),
-            doc["endDate"].isoformat()
+            doc["start_date"].isoformat(),
+            doc["end_date"].isoformat()
         )
 
         # strip all the special characters
@@ -62,7 +56,6 @@ def _upsert_batch(texts, ids):
         }
         for doc_id, text, embedding in zip(ids, texts, embeddings)
     ]
-    index.upsert(vectors=vectors)
     index.upsert(vectors=vectors)
 
 # === Example Usage ===

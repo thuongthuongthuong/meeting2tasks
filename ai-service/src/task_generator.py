@@ -4,7 +4,7 @@ import logging
 from openai import OpenAI
 from dotenv import load_dotenv
 from rag import query_with_adapter
-from utils import create_description, get_document_by_project_id
+from utils import create_description, get_document_by_project_id, get_task_by_project_id
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,17 +20,59 @@ def strip_markdown_fences(content: str) -> str:
         content = content.removeprefix("```").removesuffix("```").strip()
     return content
 
+def format_fewshot_for_project(few_shot_examples: list, max_examples=20) -> str:
+    prompt = "Here are some example tasks:\n\n"
+    for task in few_shot_examples[:max_examples]:
+        try:
+            # Make sure only relevant fields are used
+            example = {
+                "title": task["name"] if "name" in task else task["title"],
+                "description": task["description"],
+                "role": ""  # you can customize role inference
+            }
+            prompt += f"\n{json.dumps(example, indent=2)}\n\n"
+        except Exception as e:
+            logger.warning(f"Failed to format task for few-shot: {e}")
+            continue
+    return prompt   
+
+
+
 def get_task_json(user_input: str, project_id = None) -> list:
     project_doc = get_document_by_project_id(project_id)
     desc = create_description(project_doc)
-    relevant_project = query_with_adapter
+    relevant_project = query_with_adapter(desc, top_k=2)
+    
+    # make few-shot examples
+    few_shot_prompt = ""
 
-    system_prompt = """
-        You are an AI assistant for project management specializing in task extraction. Your job is to analyze the user's input (a meeting note) and break it down into specific, actionable tasks. Return the tasks strictly in JSON format as an array of objects, with no additional comments, explanations, or formatting outside the JSON.
+    for match in relevant_project["matches"]:
+        # get the project ID
+        id = match["id"]
+        # print(match)
+        # print(f"Project ID: {id}")
+        if id and id != project_id:
+            # get the tasks for this project
+            tasks = get_task_by_project_id(id)
+            if tasks:
+                few_shot_prompt += f"""Here are some example tasks from project {id}:\n
+                {format_fewshot_for_project(tasks)}
+                \n
+                """
+    # print(f"Few-shot examples:")
+    # print(few_shot_prompt)
+
+    # Extract tasks from the relevant project to use as few-shot examples
+
+    system_prompt = f"""
+        You are an AI assistant for project management specializing in task extraction. Your job is to analyze the user's input (a meeting note / promts) and break it down into specific, actionable tasks. Return the tasks strictly in JSON format as an array of objects, with no additional comments, explanations, or formatting outside the JSON.
 
         Each task should represent a clear, actionable step derived from the input. Do not simply repeat the input as a task; instead, interpret the intent and break it down into smaller, practical tasks. Aim to generate at least 5-7 tasks to cover various aspects of the input, unless the input is too simple to warrant more.
 
+        {few_shot_prompt}\n
+        """+"""
         The output format must be: [{"title": "string", "description": "string", "role": "string"}]
+
 
         - "title": A concise name for the task (e.g., "Design login page UI").
         - "description": A detailed description of the task (e.g., "Create a wireframe or mockup for the login page UI").
@@ -93,3 +135,14 @@ def get_task_json(user_input: str, project_id = None) -> list:
     except Exception as e:
         logger.error(f"Error generating tasks: {str(e)}")
         raise
+
+
+# if __name__ == "__main__":
+#     # Example usage
+#     user_input = "We need to design a menu page for the app, including the login page and the main dashboard. The login page should have a username and password field, and the main dashboard should display user statistics."
+#     project_id = 1  # Example project ID
+#     try:
+#         tasks = get_task_json(user_input, project_id)
+#         # print(json.dumps(tasks, indent=2))
+#     except Exception as e:
+#         print(f"Error: {str(e)}")

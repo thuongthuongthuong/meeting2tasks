@@ -1,6 +1,8 @@
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from pymongo import MongoClient
+from bson.objectid import ObjectId
+from requests import get
 
 
 # get document from MongoDB base on project_id
@@ -34,8 +36,8 @@ def get_document_by_project_id(project_id):
         "type": "Task"
     }
     """
-    collection = client[db_name]["project"]
-    doc = collection.find_one({"_id": project_id})
+    collection = client[db_name]["projects"]
+    doc = collection.find_one({"id": project_id})
     if not doc:
         raise ValueError(f"No document found for project_id: {project_id}")
     return doc
@@ -43,11 +45,17 @@ def get_document_by_project_id(project_id):
 def get_task_by_project_id(project_id):
     """
     Retrieve tasks from MongoDB based on project_id.
+    use http://localhost:8082/api/tasks/{project_id}
     """
-    collection = client[db_name]["tasks"]
-    tasks = list(collection.find({"projectId": project_id}))
+    url = f"http://localhost:8082/api/tasks/{project_id}"
+
+    response = get(url)
+    if response.status_code != 200:
+        raise ValueError(f"Failed to fetch tasks for project_id: {project_id}")
+    tasks = response.json()
     if not tasks:
         raise ValueError(f"No tasks found for project_id: {project_id}")
+
     return tasks
 
 
@@ -77,12 +85,23 @@ def calculate_time_interval(created_at, pushed_at):
 def create_description(doc):
     desc = doc["description"]
 
+
     desc += " " + calculate_time_interval(
-        doc["startDate"].isoformat(),
-        doc["endDate"].isoformat()
+        doc["start_date"].isoformat(),
+        doc["end_date"].isoformat()
     )
 
     # Strip all the special characters
     desc = "".join(e for e in desc if e.isalnum() or e.isspace())
 
     return desc
+
+# test
+if __name__ == "__main__":
+    project_id = 1
+    doc = get_document_by_project_id(project_id)
+    print(doc)
+    desc = create_description(doc)
+    print(desc)
+    tasks = get_task_by_project_id(project_id)
+    print(tasks)
