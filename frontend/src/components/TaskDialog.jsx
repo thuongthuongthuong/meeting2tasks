@@ -28,9 +28,8 @@ import SpeedIcon from '@mui/icons-material/Speed';
 import PersonIcon from '@mui/icons-material/Person';
 
 const TaskDialog = ({ open, onClose, onSubmit, users, initialTask, isEditMode }) => {
-  // Default task data
   const [taskData, setTaskData] = useState({
-    id: '', // Thêm id để sử dụng trong chế độ chỉnh sửa
+    id: '',
     title: '',
     description: '',
     type: 'task',
@@ -39,20 +38,18 @@ const TaskDialog = ({ open, onClose, onSubmit, users, initialTask, isEditMode })
     assignee: null,
   });
 
-  // Pre-fill task data when initialTask or isEditMode changes
   useEffect(() => {
     if (isEditMode && initialTask) {
       setTaskData({
-        id: initialTask.id,
+        id: initialTask.id || '',
         title: initialTask.title || '',
         description: initialTask.description || '',
         type: initialTask.type || 'task',
         priority: initialTask.priority || 'medium',
         storyPoints: initialTask.storyPoints || 1,
-        assignee: initialTask.assignee || null,
+        assignee: initialTask.assignee || { _id: null, name: 'Unassigned' },
       });
     } else {
-      // Reset form when adding new task
       setTaskData({
         id: '',
         title: '',
@@ -60,9 +57,10 @@ const TaskDialog = ({ open, onClose, onSubmit, users, initialTask, isEditMode })
         type: 'task',
         priority: 'medium',
         storyPoints: 1,
-        assignee: users[0] || null, // Đặt assignee mặc định là user đầu tiên nếu có
+        assignee: users.length > 0 ? users[0] : { _id: null, name: 'Unassigned' },
       });
     }
+    console.log('Pre-filled taskData:', taskData);
   }, [initialTask, isEditMode, users]);
 
   const handleInputChange = (e) => {
@@ -74,23 +72,28 @@ const TaskDialog = ({ open, onClose, onSubmit, users, initialTask, isEditMode })
   };
 
   const handleUserChange = (e) => {
-    const selectedUser = users.find((user) => user.id === e.target.value) || null;
+    const selectedUserId = e.target.value;
+    const selectedUser = users.find((user) => user._id === selectedUserId) || { _id: null, name: 'Unassigned' };
     setTaskData((prev) => ({
       ...prev,
       assignee: selectedUser,
     }));
+    console.log('Selected user:', selectedUser);
   };
 
   const handleSubmit = () => {
+    if (!taskData.title.trim()) {
+      alert('Please enter a title.');
+      return;
+    }
     if (isEditMode && initialTask) {
-      onSubmit(initialTask.id, taskData); // Truyền task.id và dữ liệu đã cập nhật cho handleUpdateTask
+      onSubmit(initialTask.id, taskData);
     } else {
-      onSubmit(taskData); // Truyền dữ liệu mới cho handleAddTask
+      onSubmit(taskData);
     }
     onClose();
   };
 
-  // Helper functions for UI elements
   const getTypeIcon = (type) => {
     switch (type) {
       case 'bug':
@@ -101,7 +104,6 @@ const TaskDialog = ({ open, onClose, onSubmit, users, initialTask, isEditMode })
         return <AssignmentIcon color="action" />;
     }
   };
-
 
   return (
     <Dialog
@@ -137,7 +139,6 @@ const TaskDialog = ({ open, onClose, onSubmit, users, initialTask, isEditMode })
 
       <DialogContent sx={{ pt: 1 }}>
         <Stack spacing={3}>
-          {/* Title field */}
           <TextField
             label="Title"
             name="title"
@@ -152,7 +153,6 @@ const TaskDialog = ({ open, onClose, onSubmit, users, initialTask, isEditMode })
             }}
           />
 
-          {/* Description field */}
           <TextField
             label="Description"
             name="description"
@@ -172,7 +172,6 @@ const TaskDialog = ({ open, onClose, onSubmit, users, initialTask, isEditMode })
             <Chip label="Task Properties" variant="outlined" />
           </Divider>
 
-          {/* Type and Priority fields in one row - full width */}
           <Box sx={{ width: '100%' }}>
             <Grid container spacing={2} sx={{ width: '100%' }}>
               <Grid item xs={6}>
@@ -242,7 +241,6 @@ const TaskDialog = ({ open, onClose, onSubmit, users, initialTask, isEditMode })
             </Grid>
           </Box>
 
-          {/* Story Points and Assignee fields in one row - full width */}
           <Box sx={{ width: '100%' }}>
             <Grid container spacing={2} sx={{ width: '100%' }}>
               <Grid item xs={6}>
@@ -274,13 +272,19 @@ const TaskDialog = ({ open, onClose, onSubmit, users, initialTask, isEditMode })
                   <InputLabel id="assignee-label">Assignee</InputLabel>
                   <Select
                     labelId="assignee-label"
-                    value={taskData.assignee?.id || ''}
+                    value={taskData.assignee?._id || ''}
                     label="Assignee"
                     onChange={handleUserChange}
                     sx={{ borderRadius: 1.5 }}
                   >
+                    <MenuItem value="">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <PersonIcon />
+                        <Typography>Unassigned</Typography>
+                      </Box>
+                    </MenuItem>
                     {users.map((user) => (
-                      <MenuItem key={user.id} value={user.id}>
+                      <MenuItem key={user._id} value={user._id}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                           <Avatar
                             src={user.avatar}
@@ -326,5 +330,6 @@ const TaskDialog = ({ open, onClose, onSubmit, users, initialTask, isEditMode })
       </DialogActions>
     </Dialog>
   );
-}
+};
+
 export default TaskDialog;

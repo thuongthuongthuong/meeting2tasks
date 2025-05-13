@@ -39,10 +39,10 @@ import HistoryIcon from '@mui/icons-material/History';
 import StarIcon from '@mui/icons-material/Star';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import AssignmentIcon from '@mui/icons-material/Assignment';
-import EditIcon from '@mui/icons-material/Edit'; // Import từ @mui/icons-material
+import EditIcon from '@mui/icons-material/Edit';
 import { generateTasksFromMeetingNotes } from '../utils/api';
 
-const AISidebar = ({ onAddTask, teamMembers, projectId = 1 }) => {
+const AISidebar = ({ onAddTask, projectId = 1 }) => {
   const [prompt, setPrompt] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -50,7 +50,7 @@ const AISidebar = ({ onAddTask, teamMembers, projectId = 1 }) => {
   const [promptHistory, setPromptHistory] = useState([]);
   const [activeTab, setActiveTab] = useState('suggestions');
   const [showAnimation, setShowAnimation] = useState(false);
-  const [anchorEl, setAnchorEl] = useState(null);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editTask, setEditTask] = useState(null);
@@ -112,16 +112,50 @@ const AISidebar = ({ onAddTask, teamMembers, projectId = 1 }) => {
     }
   };
 
-  const handleAssignTask = (event, task) => {
-    setSelectedTask(task);
-    setAnchorEl(event.currentTarget);
+  const assignSingleTask = async (task, assignee = null) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`http://localhost:8082/api/assign-users-to-tasks?projectId=${projectId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify([{ ...task, assignee }]),
+      });
+      if (!response.ok) throw new Error('Failed to assign task');
+      const assignedTasks = await response.json();
+      console.log('Assigned single task from API:', assignedTasks);
+
+      const updatedTask = assignedTasks[0];
+      setSuggestions(suggestions.map(t =>
+        t.id === task.id ? { ...t, ...updatedTask, assignee: updatedTask.assignableUsers?.[0] || assignee } : t
+      ));
+      return updatedTask;
+    } catch (error) {
+      console.error('Error assigning single task:', error);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleSelectAssignee = (assignee) => {
-    setSuggestions(suggestions.map(task =>
-      task.id === selectedTask.id ? { ...task, assignee } : task
-    ));
-    setAnchorEl(null);
+  const handleAssignTask = async (task) => {
+    setSelectedTask(task);
+    setAssignDialogOpen(true);
+
+    const updatedTask = await assignSingleTask(task);
+    if (updatedTask) {
+      setSelectedTask(updatedTask);
+    }
+  };
+
+  const handleSelectAssignee = async (user) => {
+    if (!selectedTask) return;
+    await assignSingleTask(selectedTask, user);
+    setAssignDialogOpen(false);
+  };
+
+  const handleCloseAssignDialog = () => {
+    setAssignDialogOpen(false);
+    setSelectedTask(null);
   };
 
   const handleAssignAll = () => {
@@ -301,7 +335,7 @@ const AISidebar = ({ onAddTask, teamMembers, projectId = 1 }) => {
                               </IconButton>
                             </Tooltip>
                             <Tooltip title="Phân công">
-                              <IconButton size="small" onClick={(e) => handleAssignTask(e, task)} sx={{ color: '#2196F3' }}>
+                              <IconButton size="small" onClick={() => handleAssignTask(task)} sx={{ color: '#2196F3' }}>
                                 <AssignmentIcon />
                               </IconButton>
                             </Tooltip>
@@ -343,19 +377,51 @@ const AISidebar = ({ onAddTask, teamMembers, projectId = 1 }) => {
         <Button size="small" startIcon={<InsertChartIcon />} sx={{ textTransform: 'none', color: '#2196F3' }}>Phân tích dự án</Button>
         <Typography variant="caption" color="text.secondary">Powered by AI Assistant</Typography>
       </Box>
-      <Menu
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={() => setAnchorEl(null)}
-        PaperProps={{ style: { maxHeight: 200, width: '20ch' } }}
-      >
-        {selectedTask?.assignableUsers?.map((user) => (
-          <MenuItem key={user._id} onClick={() => handleSelectAssignee(user)} sx={{ py: 0.5 }}>
-            <Avatar src={user.avatar} sx={{ width: 24, height: 24, mr: 1 }} />
-            {user.name}
-          </MenuItem>
-        ))}
-      </Menu>
+      <Dialog open={assignDialogOpen} onClose={handleCloseAssignDialog} maxWidth="xs" fullWidth>
+        <DialogTitle>Phân công Task: {selectedTask?.title}</DialogTitle>
+        <DialogContent>
+          {selectedTask?.assignee && (
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="subtitle2" color="text.secondary">Người được đề xuất hiện tại:</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                <Avatar src={selectedTask.assignee.avatar} sx={{ width: 24, height: 24, mr: 1 }} />
+                <Typography variant="body2">{selectedTask.assignee.name}</Typography>
+              </Box>
+            </Box>
+          )}
+          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+            Chọn người để phân công:
+          </Typography>
+          {isLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+              <CircularProgress size={24} />
+            </Box>
+          ) : selectedTask?.assignableUsers?.length > 0 ? (
+            <List dense>
+              {selectedTask.assignableUsers.map((user) => (
+                <ListItem
+                  key={user._id}
+                  button
+                  onClick={() => handleSelectAssignee(user)}
+                  sx={{
+                    border: selectedTask.assignee?._id === user._id ? '2px solid #4CAF50' : 'none',
+                    borderRadius: '4px',
+                    mb: 1
+                  }}
+                >
+                  <Avatar src={user.avatar} sx={{ width: 24, height: 24, mr: 1 }} />
+                  <ListItemText primary={user.name} />
+                </ListItem>
+              ))}
+            </List>
+          ) : (
+            <Typography variant="body2" color="text.secondary">Không có người dùng phù hợp để phân công.</Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseAssignDialog}>Đóng</Button>
+        </DialogActions>
+      </Dialog>
       <Dialog open={editDialogOpen} onClose={handleCloseEditDialog} maxWidth="sm" fullWidth>
         <DialogTitle>Chỉnh sửa Task</DialogTitle>
         <DialogContent>

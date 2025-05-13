@@ -11,70 +11,72 @@ db.tasks.drop();
 db.chat_sessions.drop();
 db.chat_history.drop();
 
-var usersData = [{
-  "_id": ObjectId("6818ca58141f65cabbb62285"),
-  "id": 1,
-  "name": "User 1 Designer",
-  "role": "Designer",
-  "avatar": "https://example.com/avatar1.jpg",
-  "created_at": new Date("2024-02-15T00:00:00.000Z")
-},
-{
-  "_id": ObjectId("6818ca58141f65cabbb62286"),
-  "id": 2,
-  "name": "User 2 Designer",
-  "role": "Designer",
-  "avatar": "https://example.com/avatar2.jpg",
-  "created_at": new Date("2024-02-20T00:00:00.000Z")
-},
-{
-  "_id": ObjectId("6818ca58141f65cabbb62287"),
-  "id": 3,
-  "name": "User 3 FrontendDeveloper",
-  "role": "Frontend Developer",
-  "avatar": "https://example.com/avatar3.jpg",
-  "created_at": new Date("2024-03-10T00:00:00.000Z")
-},
-{
-  "_id": ObjectId("6818ca58141f65cabbb62288"),
-  "id": 4,
-  "name": "User 4 BackendDeveloper",
-  "role": "Backend Developer",
-  "avatar": "https://example.com/avatar4.jpg",
-  "created_at": new Date("2024-03-15T00:00:00.000Z")
-},
-{
-  "_id": ObjectId("6818ca58141f65cabbb62289"),
-  "id": 5,
-  "name": "User 5 Tester",
-  "role": "Tester",
-  "avatar": "https://example.com/avatar5.jpg",
-  "created_at": new Date("2024-04-01T00:00:00.000Z")
-},
-{
-  "_id": ObjectId("6818ca58141f65cabbb6228a"),
-  "id": 6,
-  "name": "User 6 ProjectManager",
-  "role": "Project Manager",
-  "avatar": "https://example.com/avatar6.jpg",
-  "created_at": new Date("2024-02-10T00:00:00.000Z")
-},
-{
-  "_id": ObjectId("6818ca58141f65cabbb6228b"),
-  "id": 7,
-  "name": "User 7 SecurityEngineer",
-  "role": "Security Engineer",
-  "avatar": "https://example.com/avatar7.jpg",
-  "created_at": new Date("2024-03-05T00:00:00.000Z")
-},
-{
-  "_id": ObjectId("6818ca58141f65cabbb6228c"),
-  "id": 8,
-  "name": "User 8 Researcher",
-  "role": "Researcher",
-  "avatar": "https://example.com/avatar8.jpg",
-  "created_at": new Date("2024-02-25T00:00:00.000Z")
-}];
+var usersData = [
+  {
+    "_id": ObjectId("6818ca58141f65cabbb62285"),
+    "id": 1,
+    "name": "User 1 Designer",
+    "role": "Designer",
+    "avatar": "https://images.unsplash.com/photo-1519345182560-3f2917c472ef?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80",
+    "created_at": new Date("2024-02-15T00:00:00.000Z")
+  },
+  {
+    "_id": ObjectId("6818ca58141f65cabbb62286"),
+    "id": 2,
+    "name": "User 2 Designer",
+    "role": "Designer",
+    "avatar": "https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=1",
+    "created_at": new Date("2024-02-20T00:00:00.000Z")
+  },
+  {
+    "_id": ObjectId("6818ca58141f65cabbb62287"),
+    "id": 3,
+    "name": "User 3 FrontendDeveloper",
+    "role": "Frontend Developer",
+    "avatar": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80",
+    "created_at": new Date("2024-03-10T00:00:00.000Z")
+  },
+  {
+    "_id": ObjectId("6818ca58141f65cabbb62288"),
+    "id": 4,
+    "name": "User 4 BackendDeveloper",
+    "role": "Backend Developer",
+    "avatar": "https://images.pexels.com/photos/1234535/pexels-photo-1234535.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=1",
+    "created_at": new Date("2024-03-15T00:00:00.000Z")
+  },
+  {
+    "_id": ObjectId("6818ca58141f65cabbb62289"),
+    "id": 5,
+    "name": "User 5 Tester",
+    "role": "Tester",
+    "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80",
+    "created_at": new Date("2024-04-01T00:00:00.000Z")
+  },
+  {
+    "_id": ObjectId("6818ca58141f65cabbb6228a"),
+    "id": 6,
+    "name": "User 6 ProjectManager",
+    "role": "Project Manager",
+    "avatar": "https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=1",
+    "created_at": new Date("2024-02-10T00:00:00.000Z")
+  },
+  {
+    "_id": ObjectId("6818ca58141f65cabbb6228b"),
+    "id": 7,
+    "name": "User 7 SecurityEngineer",
+    "role": "Security Engineer",
+    "avatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80",
+    "created_at": new Date("2024-03-05T00:00:00.000Z")
+  },
+  {
+    "_id": ObjectId("6818ca58141f65cabbb6228c"),
+    "id": 8,
+    "name": "User 8 Researcher",
+    "role": "Researcher",
+    "avatar": "https://images.pexels.com/photos/91227/pexels-photo-91227.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&dpr=1",
+    "created_at": new Date("2024-02-25T00:00:00.000Z")
+  }
+];
 
 var sprintsData = [{
   "_id": ObjectId("6818caaa141f65cabbb622a5"),
