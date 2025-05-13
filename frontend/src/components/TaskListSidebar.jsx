@@ -80,7 +80,11 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
         dueDate: "3 days",
         priority: "medium",
         type: "task",
-        assignableUsers: task.assignableUsers || []
+        assignableUsers: task.assignableUsers || [],
+        assignee: task.assignableUsers?.length > 0 && !task.assignee 
+          ? task.assignableUsers.reduce((prev, curr) => 
+              (prev.match_percentage || 0) > (curr.match_percentage || 0) ? prev : curr, task.assignableUsers[0])
+          : task.assignee
       }));
       setSuggestions(mappedTasks);
     } catch (error) {
@@ -105,7 +109,10 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
       const assignedTasks = await response.json();
       setSuggestions(assignedTasks.map(task => ({
         ...task,
-        assignee: task.assignableUsers?.length > 0 ? task.assignableUsers[0] : null,
+        assignee: task.assignableUsers?.length > 0 && !task.assignee 
+          ? task.assignableUsers.reduce((prev, curr) => 
+              (prev.match_percentage || 0) > (curr.match_percentage || 0) ? prev : curr, task.assignableUsers[0])
+          : task.assignee,
         assignableUsers: task.assignableUsers || []
       })));
     } catch (error) {
@@ -121,17 +128,22 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
       const response = await fetch(`http://localhost:8082/api/assign-users-to-tasks?projectId=${projectId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify([{ ...task, assignee }]),
+        body: JSON.stringify([{ ...task, assignee: assignee || task.assignee || task.assignableUsers?.[0] }]),
       });
       if (!response.ok) throw new Error('Failed to assign task');
       const assignedTasks = await response.json();
       console.log('Assigned single task from API:', assignedTasks);
 
-      const updatedTask = assignedTasks[0];
-      setSuggestions(suggestions.map(t =>
-        t.id === task.id ? { ...t, ...updatedTask, assignee: updatedTask.assignableUsers?.[0] || assignee, assignableUsers: updatedTask.assignableUsers || [] } : t
+      const updatedTask = assignedTasks[0] || task;
+      const newAssignee = assignee || updatedTask.assignee || (updatedTask.assignableUsers?.length > 0 && !updatedTask.assignee 
+        ? updatedTask.assignableUsers.reduce((prev, curr) => 
+            (prev.match_percentage || 0) > (curr.match_percentage || 0) ? prev : curr, updatedTask.assignableUsers[0])
+        : null);
+      
+      setSuggestions(prevSuggestions => prevSuggestions.map(t =>
+        t.id === task.id ? { ...t, ...updatedTask, assignee: newAssignee } : t
       ));
-      return updatedTask;
+      return { ...updatedTask, assignee: newAssignee };
     } catch (error) {
       console.error('Error assigning single task:', error);
       return null;
@@ -141,18 +153,36 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
   };
 
   const handleAssignTask = async (task) => {
-    setSelectedTask(task);
+    const taskToAssign = { ...task };
+    const defaultAssignee = !taskToAssign.assignee && taskToAssign.assignableUsers?.length > 0 
+      ? taskToAssign.assignableUsers.reduce((prev, curr) => 
+          (prev.match_percentage || 0) > (curr.match_percentage || 0) ? prev : curr, taskToAssign.assignableUsers[0])
+      : taskToAssign.assignee;
+    taskToAssign.assignee = defaultAssignee;
+    
+    setSelectedTask(taskToAssign);
     setAssignDialogOpen(true);
 
-    const updatedTask = await assignSingleTask(task);
-    if (updatedTask) {
-      setSelectedTask(updatedTask);
+    const result = await assignSingleTask(taskToAssign);
+    if (result) {
+      const updatedAssignee = !result.assignee && result.assignableUsers?.length > 0 
+        ? result.assignableUsers.reduce((prev, curr) => 
+            (prev.match_percentage || 0) > (curr.match_percentage || 0) ? prev : curr, result.assignableUsers[0])
+        : result.assignee;
+      setSelectedTask(prev => ({ ...prev, ...result, assignee: updatedAssignee }));
     }
   };
 
   const handleSelectAssignee = async (user) => {
     if (!selectedTask) return;
-    await assignSingleTask(selectedTask, user);
+    
+    const updatedTask = { ...selectedTask, assignee: user };
+    setSelectedTask(updatedTask);
+    
+    const result = await assignSingleTask(updatedTask, user);
+    if (result) {
+      setSelectedTask(result);
+    }
     setAssignDialogOpen(false);
   };
 
@@ -166,14 +196,27 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
   };
 
   const handleEditTask = (task) => {
-    setEditTask({ ...task });
+    const defaultAssignee = !task.assignee && task.assignableUsers?.length > 0 
+      ? task.assignableUsers.reduce((prev, curr) => 
+          (prev.match_percentage || 0) > (curr.match_percentage || 0) ? prev : curr, task.assignableUsers[0])
+      : task.assignee;
+    setEditTask({
+      ...task,
+      assignee: defaultAssignee
+    });
     setEditDialogOpen(true);
   };
 
-  const handleSaveEdit = () => {
-    setSuggestions(suggestions.map(task =>
-      task.id === editTask.id ? { ...editTask } : task
-    ));
+  const handleSaveEdit = async () => {
+    if (editTask) {
+      setSuggestions(prevSuggestions => prevSuggestions.map(task =>
+        task.id === editTask.id ? { ...editTask } : task
+      ));
+
+      if (editTask.assignee) {
+        await assignSingleTask(editTask, editTask.assignee);
+      }
+    }
     setEditDialogOpen(false);
     setEditTask(null);
   };
@@ -228,99 +271,273 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
   return (
     <Paper 
       elevation={2} 
-      sx={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', background: 'linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(250,250,252,0.95) 100%)', borderLeft: '1px solid rgba(0,0,0,0.08)', borderRadius: '8px' }}
+      sx={{ 
+        width: '100%', 
+        height: '100%', 
+        display: 'flex', 
+        flexDirection: 'column', 
+        overflow: 'hidden', 
+        borderRadius: '12px', 
+        background: 'linear-gradient(180deg, #FFFFFF 0%, #F9FAFB 100%)',
+        border: '1px solid rgba(0,0,0,0.05)'
+      }}
     >
-      <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0, opacity: showAnimation ? 0.1 : 0, transition: 'opacity 2s ease', background: 'radial-gradient(circle, rgba(138,43,226,0.1) 0%, rgba(0,0,0,0) 70%)', pointerEvents: 'none', animation: showAnimation ? 'pulse 2s infinite' : 'none', '@keyframes pulse': { '0%': { transform: 'scale(0.95)', opacity: 0.2 }, '50%': { transform: 'scale(1)', opacity: 0.3 }, '100%': { transform: 'scale(0.95)', opacity: 0.2 } } }} />
-      <Box sx={{ p: 2, borderBottom: '1px solid rgba(0,0,0,0.08)', background: 'linear-gradient(90deg, rgba(30,30,30,0.02) 0%, rgba(138,43,226,0.05) 100%)', position: 'relative', zIndex: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-          <SmartToyIcon sx={{ mr: 1, color: '#9C27B0', filter: 'drop-shadow(0px 0px 3px rgba(156,39,176,0.3))' }} />
-          <Typography variant="h6" sx={{ fontWeight: 500, background: 'linear-gradient(90deg, #9C27B0, #2196F3)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>AI Assistant</Typography>
+      {/* Background Animation */}
+      <Box 
+        sx={{ 
+          position: 'absolute', 
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          bottom: 0, 
+          zIndex: 0, 
+          opacity: showAnimation ? 0.15 : 0, 
+          transition: 'opacity 1.5s ease', 
+          background: 'radial-gradient(circle, rgba(138,43,226,0.15) 0%, rgba(0,0,0,0) 70%)', 
+          pointerEvents: 'none', 
+          animation: showAnimation ? 'pulse 2s infinite' : 'none', 
+          '@keyframes pulse': { '0%': { transform: 'scale(0.97)', opacity: 0.15 }, '50%': { transform: 'scale(1)', opacity: 0.25 }, '100%': { transform: 'scale(0.97)', opacity: 0.15 } } 
+        }} 
+      />
+
+      {/* Header */}
+      <Box sx={{ p: 2, borderBottom: '1px solid rgba(0,0,0,0.08)', position: 'relative', zIndex: 1, background: '#FFFFFF' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <SmartToyIcon sx={{ fontSize: 28, color: '#9C27B0', filter: 'drop-shadow(0px 1px 2px rgba(156,39,176,0.2))' }} />
+          <Typography 
+            variant="h6" 
+            sx={{ 
+              fontWeight: 600, 
+              background: 'linear-gradient(90deg, #9C27B0, #2196F3)', 
+              WebkitBackgroundClip: 'text', 
+              WebkitTextFillColor: 'transparent' 
+            }}
+          >
+            AI Assistant
+          </Typography>
         </Box>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Let me suggest some tasks for your team!</Typography>
-        <Box sx={{ position: 'relative' }}>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: '0.85rem' }}>
+          Generate and manage tasks effortlessly with AI.
+        </Typography>
+
+        {/* Prompt Input */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
           <TextField
             fullWidth
-            size="medium"
+            size="small"
             placeholder="Enter your request, e.g., 'Suggest tasks for Project X'"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyPress={handleKeyPress}
-            sx={{ mb: 1, '& .MuiOutlinedInput-root': { borderRadius: '12px', '&:hover fieldset': { borderColor: 'rgba(30, 144, 255, 0.5)' }, '&.Mui-focused fieldset': { borderColor: '#2196F3', boxShadow: '0 0 0 2px rgba(33, 150, 243, 0.1)' } } }}
-            InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ color: '#2196F3' }} /></InputAdornment>, endAdornment: <InputAdornment position="end"><IconButton size="small" onClick={handleVoiceInput} sx={{ mr: 0.5, color: 'rgba(0,0,0,0.54)' }}><InsertDriveFileIcon /></IconButton><IconButton size="small" onClick={handleVoiceInput} sx={{ mr: 0.5, color: isListening ? '#F44336' : 'rgba(0,0,0,0.54)', animation: isListening ? 'pulse 1s infinite' : 'none' }}><MicIcon /></IconButton><Button variant="contained" size="small" onClick={handleSubmitPrompt} endIcon={<SendIcon />} disabled={!prompt.trim() || isLoading} sx={{ borderRadius: '8px', background: '#00C9FF', textTransform: 'none', boxShadow: '0 2px 5px rgba(0, 201, 255, 0.2)', '&:hover': { boxShadow: '0 4px 10px rgba(0, 201, 255, 0.3)' } }}>{isLoading ? <CircularProgress size={24} /> : 'Send'}</Button></InputAdornment> }}
+            sx={{ 
+              '& .MuiOutlinedInput-root': { 
+                borderRadius: '8px', 
+                backgroundColor: '#F9FAFB', 
+                '&:hover fieldset': { borderColor: '#2196F3' }, 
+                '&.Mui-focused fieldset': { borderColor: '#2196F3', boxShadow: '0 0 0 2px rgba(33, 150, 243, 0.1)' } 
+              },
+              '& .MuiInputBase-input': { fontSize: '0.9rem', py: 1 }
+            }}
+            InputProps={{ 
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ color: '#2196F3', fontSize: '1.2rem' }} />
+                </InputAdornment>
+              ),
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={handleVoiceInput} sx={{ color: isListening ? '#F44336' : 'rgba(0,0,0,0.54)', animation: isListening ? 'pulse 1s infinite' : 'none' }}>
+                    <MicIcon sx={{ fontSize: '1.2rem' }} />
+                  </IconButton>
+                  <IconButton size="small" onClick={handleVoiceInput} sx={{ color: 'rgba(0,0,0,0.54)' }}>
+                    <InsertDriveFileIcon sx={{ fontSize: '1.2rem' }} />
+                  </IconButton>
+                </InputAdornment>
+              )
+            }}
           />
+          <Button 
+            variant="contained" 
+            onClick={handleSubmitPrompt} 
+            disabled={!prompt.trim() || isLoading} 
+            sx={{ 
+              borderRadius: '8px', 
+              background: '#2196F3', 
+              textTransform: 'none', 
+              px: 2, 
+              py: 0.8, 
+              '&:hover': { background: '#1E88E5' },
+              '&:disabled': { background: '#B0BEC5' }
+            }}
+            endIcon={isLoading ? <CircularProgress size={16} color="inherit" /> : <SendIcon sx={{ fontSize: '1.2rem' }} />}
+          >
+            Send
+          </Button>
         </Box>
+
+        {/* Quick Suggestions */}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
           {quickSuggestions.map((suggestion, index) => (
-            <Chip key={index} label={suggestion} onClick={() => handleQuickSuggestion(suggestion)} size="small" sx={{ borderRadius: '16px', background: 'rgba(33, 150, 243, 0.08)', color: '#2196F3', '&:hover': { background: 'rgba(33, 150, 243, 0.15)' } }} />
+            <Chip 
+              key={index} 
+              label={suggestion} 
+              onClick={() => handleQuickSuggestion(suggestion)} 
+              size="small" 
+              sx={{ 
+                borderRadius: '16px', 
+                background: 'rgba(33, 150, 243, 0.1)', 
+                color: '#2196F3', 
+                fontSize: '0.8rem', 
+                px: 1, 
+                '&:hover': { background: 'rgba(33, 150, 243, 0.2)' } 
+              }} 
+            />
           ))}
         </Box>
       </Box>
-      <Box sx={{ display: 'flex', borderBottom: '1px solid rgba(0,0,0,0.08)', background: 'rgba(250,250,252,0.8)', position: 'relative', zIndex: 1 }}>
-        <Button sx={{ flexGrow: 1, py: 1, borderRadius: 0, borderBottom: activeTab === 'suggestions' ? '2px solid #2196F3' : 'none', color: activeTab === 'suggestions' ? '#2196F3' : 'text.secondary', fontWeight: activeTab === 'suggestions' ? 500 : 400 }} onClick={() => setActiveTab('suggestions')}>Suggestions</Button>
-        <Button sx={{ flexGrow: 1, py: 1, borderRadius: 0, borderBottom: activeTab === 'history' ? '2px solid #2196F3' : 'none', color: activeTab === 'history' ? '#2196F3' : 'text.secondary', fontWeight: activeTab === 'history' ? 500 : 400 }} onClick={() => setActiveTab('history')}>History</Button>
+
+      {/* Tabs */}
+      <Box sx={{ display: 'flex', borderBottom: '1px solid rgba(0,0,0,0.08)', background: '#FFFFFF', position: 'relative', zIndex: 1 }}>
+        <Button 
+          sx={{ 
+            flex: 1, 
+            py: 1.5, 
+            borderRadius: 0, 
+            borderBottom: activeTab === 'suggestions' ? '2px solid #2196F3' : 'none', 
+            color: activeTab === 'suggestions' ? '#2196F3' : 'text.secondary', 
+            fontWeight: activeTab === 'suggestions' ? 600 : 400,
+            fontSize: '0.9rem',
+            textTransform: 'none'
+          }} 
+          onClick={() => setActiveTab('suggestions')}
+        >
+          Suggestions
+        </Button>
+        <Button 
+          sx={{ 
+            flex: 1, 
+            py: 1.5, 
+            borderRadius: 0, 
+            borderBottom: activeTab === 'history' ? '2px solid #2196F3' : 'none', 
+            color: activeTab === 'history' ? '#2196F3' : 'text.secondary', 
+            fontWeight: activeTab === 'history' ? 600 : 400,
+            fontSize: '0.9rem',
+            textTransform: 'none'
+          }} 
+          onClick={() => setActiveTab('history')}
+        >
+          History
+        </Button>
       </Box>
-      <Box sx={{ flexGrow: 1, overflow: 'auto', position: 'relative', zIndex: 1 }}>
+
+      {/* Main Content */}
+      <Box sx={{ flexGrow: 1, overflowY: 'auto', position: 'relative', zIndex: 1, backgroundColor: '#FAFAFA' }}>
         {activeTab === 'suggestions' && (
           <>
             {isLoading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', flexDirection: 'column' }}>
-                <CircularProgress size={40} sx={{ mb: 2, color: '#9C27B0' }} />
-                <Typography variant="body2" color="text.secondary">Analyzing and generating suggestions...</Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', flexDirection: 'column', gap: 2 }}>
+                <CircularProgress size={36} sx={{ color: '#9C27B0' }} />
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.9rem' }}>
+                  Generating suggestions...
+                </Typography>
               </Box>
             ) : suggestions.length > 0 ? (
               <>
-                <Box sx={{ mx: 2, mt: 2 }}>
-                  <Alert severity="warning" variant="outlined" sx={{ fontSize: '0.875rem' }}>The suggestions below are AI-generated. Please review carefully before using.</Alert>
+                <Box sx={{ p: 2 }}>
+                  <Alert 
+                    severity="info" 
+                    variant="outlined" 
+                    sx={{ 
+                      fontSize: '0.85rem', 
+                      backgroundColor: 'rgba(33, 150, 243, 0.05)', 
+                      borderColor: 'rgba(33, 150, 243, 0.2)', 
+                      color: '#1565C0'
+                    }}
+                  >
+                    These are AI-generated suggestions. Please review before proceeding.
+                  </Alert>
                 </Box>
-                <Button variant="contained" onClick={handleAssignAll} sx={{ m: 2, background: '#00C9FF', textTransform: 'none', '&:hover': { background: '#00B0FF' } }} disabled={isLoading}>Assign All</Button>
-                <List disablePadding>
+                <Box sx={{ px: 2, mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                  <Button 
+                    variant="contained" 
+                    onClick={handleAssignAll} 
+                    disabled={isLoading} 
+                    sx={{ 
+                      borderRadius: '8px', 
+                      background: '#2196F3', 
+                      textTransform: 'none', 
+                      px: 3, 
+                      py: 0.8, 
+                      '&:hover': { background: '#1E88E5' }
+                    }}
+                  >
+                    Assign All
+                  </Button>
+                </Box>
+                <List disablePadding sx={{ px: 1, pb: 2 }}>
                   {suggestions.map((task, index) => (
                     <Fade in={true} key={task.id} style={{ transitionDelay: `${index * 100}ms` }}>
                       <Paper 
                         elevation={1} 
                         sx={{ 
-                          m: 1.5, 
-                          borderRadius: '12px', 
+                          m: 1, 
+                          borderRadius: '10px', 
                           position: 'relative', 
                           overflow: 'hidden', 
-                          background: 'linear-gradient(135deg, #ffffff 0%, #f9f9fb 100%)',
+                          background: '#FFFFFF',
                           transition: 'all 0.3s ease',
-                          '&:hover': { transform: 'translateY(-4px)', boxShadow: '0 6px 12px rgba(0,0,0,0.1)' }
+                          '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 8px rgba(0,0,0,0.08)' }
                         }}
                       >
                         <Box sx={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', backgroundColor: getPriorityColor(task.priority) }} />
-                        <ListItem sx={{ pr: 1, pl: 2, py: 2, alignItems: 'flex-start' }}>
-                          <ListItemIcon sx={{ minWidth: 40, mt: 0.5 }}>
+                        <ListItem sx={{ px: 2, py: 1.5, alignItems: 'flex-start', gap: 1 }}>
+                          <ListItemIcon sx={{ minWidth: 36, mt: 0.5 }}>
                             {getTaskIcon(task.type)}
                           </ListItemIcon>
                           <ListItemText
                             primary={
-                              <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
-                                <Typography variant="subtitle1" sx={{ fontWeight: 500, color: '#333' }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1A1A1A' }}>
                                   {task.title}
                                 </Typography>
                                 <Chip 
                                   size="small" 
                                   label={task.role} 
-                                  sx={{ ml: 1, background: 'rgba(156, 39, 176, 0.1)', color: '#9C27B0', fontSize: '0.75rem', height: 20 }}
+                                  sx={{ 
+                                    background: 'rgba(156, 39, 176, 0.1)', 
+                                    color: '#9C27B0', 
+                                    fontSize: '0.75rem', 
+                                    height: 22, 
+                                    borderRadius: '6px'
+                                  }}
                                 />
                               </Box>
                             }
                             secondary={
                               <Box sx={{ mt: 0.5 }}>
-                                <Typography variant="body2" color="text.secondary">
+                                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.85rem', mb: 1 }}>
                                   {task.description}
                                 </Typography>
                                 {task.assignableUsers && task.assignableUsers.length > 0 && (
-                                  <Box sx={{ mt: 1 }}>
+                                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                                     {task.assignableUsers.map((user, idx) => (
                                       <Chip
                                         key={idx}
-                                        icon={<PersonIcon sx={{ fontSize: '0.8rem !important' }} />}
+                                        icon={<PersonIcon sx={{ fontSize: '0.9rem !important', ml: 0.5 }} />}
                                         label={`${user.name} (${user.match_percentage || 0}%)`}
                                         size="small"
                                         variant="outlined"
-                                        sx={{ mr: 0.5, height: 20, fontSize: '0.65rem', borderColor: 'rgba(0,0,0,0.1)' }}
+                                        sx={{
+                                          fontSize: '0.75rem',
+                                          height: 24,
+                                          borderRadius: '6px',
+                                          borderColor: task.assignee?._id === user._id ? '#4CAF50' : 'rgba(0,0,0,0.1)',
+                                          backgroundColor: task.assignee?._id === user._id ? 'rgba(76, 175, 80, 0.05)' : 'transparent',
+                                          color: task.assignee?._id === user._id ? '#4CAF50' : 'inherit',
+                                          '& .MuiChip-icon': {
+                                            color: task.assignee?._id === user._id ? '#4CAF50' : 'inherit'
+                                          }
+                                        }}
                                       />
                                     ))}
                                   </Box>
@@ -328,25 +545,25 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
                               </Box>
                             }
                           />
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexShrink: 0, mt: 0.5 }}>
                             <Tooltip title="Edit">
                               <IconButton size="small" onClick={() => handleEditTask(task)} sx={{ color: '#FF9800' }}>
-                                <EditIcon />
+                                <EditIcon fontSize="small" />
                               </IconButton>
                             </Tooltip>
                             <Tooltip title="Accept">
                               <IconButton size="small" onClick={() => handleAcceptTask(task)} sx={{ color: '#4CAF50' }}>
-                                <CheckCircleIcon />
+                                <CheckCircleIcon fontSize="small" />
                               </IconButton>
                             </Tooltip>
                             <Tooltip title="Reject">
                               <IconButton size="small" onClick={() => setSuggestions(suggestions.filter(s => s.id !== task.id))} sx={{ color: '#F44336' }}>
-                                <CancelIcon />
+                                <CancelIcon fontSize="small" />
                               </IconButton>
                             </Tooltip>
                             <Tooltip title="Assign">
                               <IconButton size="small" onClick={() => handleAssignTask(task)} sx={{ color: '#2196F3' }}>
-                                <AssignmentIcon />
+                                <AssignmentIcon fontSize="small" />
                               </IconButton>
                             </Tooltip>
                           </Box>
@@ -357,104 +574,190 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
                 </List>
               </>
             ) : (
-              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '70%', p: 3 }}>
-                <StarIcon sx={{ fontSize: 48, color: 'rgba(156,39,176,0.2)', mb: 2 }} />
-                <Typography variant="body1" color="text.secondary" sx={{ textAlign: 'center' }}>Enter a request to get AI task suggestions</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 1 }}>The AI will analyze your request and suggest relevant tasks</Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', p: 3, textAlign: 'center' }}>
+                <StarIcon sx={{ fontSize: 40, color: 'rgba(156,39,176,0.2)', mb: 2 }} />
+                <Typography variant="body1" color="text.secondary" sx={{ fontSize: '1rem', mb: 1 }}>
+                  No suggestions yet
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.85rem' }}>
+                  Enter a request above to get AI-generated task suggestions.
+                </Typography>
               </Box>
             )}
           </>
         )}
         {activeTab === 'history' && (
-          <List disablePadding>
+          <List disablePadding sx={{ p: 1 }}>
             {promptHistory.length > 0 ? promptHistory.map((item, index) => (
               <React.Fragment key={index}>
-                <ListItem button onClick={() => { setPrompt(item.text); setActiveTab('suggestions'); }}>
-                  <ListItemIcon sx={{ minWidth: 36 }}><HistoryIcon fontSize="small" color="action" /></ListItemIcon>
-                  <ListItemText primary={item.text} secondary={new Date(item.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })} primaryTypographyProps={{ noWrap: true, variant: 'body2' }} />
+                <ListItem 
+                  button 
+                  onClick={() => { setPrompt(item.text); setActiveTab('suggestions'); }} 
+                  sx={{ 
+                    borderRadius: '8px', 
+                    py: 1, 
+                    px: 2, 
+                    '&:hover': { backgroundColor: 'rgba(0,0,0,0.03)' }
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 32 }}>
+                    <HistoryIcon fontSize="small" sx={{ color: '#78909C' }} />
+                  </ListItemIcon>
+                  <ListItemText 
+                    primary={item.text} 
+                    secondary={new Date(item.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })} 
+                    primaryTypographyProps={{ fontSize: '0.9rem', color: '#1A1A1A' }} 
+                    secondaryTypographyProps={{ fontSize: '0.75rem', color: 'text.secondary' }}
+                  />
                 </ListItem>
-                <Divider component="li" />
+                {index < promptHistory.length - 1 && <Divider component="li" sx={{ my: 0.5 }} />}
               </React.Fragment>
             )) : (
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50%', p: 3 }}>
-                <Typography variant="body2" color="text.secondary">History is empty</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', p: 3 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.9rem' }}>
+                  No history available
+                </Typography>
               </Box>
             )}
           </List>
         )}
       </Box>
-      <Box sx={{ p: 1.5, borderTop: '1px solid rgba(0,0,0,0.08)', display: 'flex', justifyContent: 'space-between', position: 'relative', zIndex: 1, backgroundColor: 'rgba(250,250,252,0.9)' }}>
-        <Button size="small" startIcon={<InsertChartIcon />} sx={{ textTransform: 'none', color: '#2196F3' }}>Analyze Project</Button>
-        <Typography variant="caption" color="text.secondary">Powered by AI Assistant</Typography>
+
+      {/* Footer */}
+      <Box sx={{ p: 1.5, borderTop: '1px solid rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 1, backgroundColor: '#FFFFFF' }}>
+        <Button 
+          size="small" 
+          startIcon={<InsertChartIcon sx={{ fontSize: '1.1rem' }} />} 
+          sx={{ 
+            textTransform: 'none', 
+            color: '#2196F3', 
+            fontSize: '0.85rem',
+            '&:hover': { backgroundColor: 'rgba(33, 150, 243, 0.05)' }
+          }}
+        >
+          Analyze Project
+        </Button>
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+          Powered by AI Assistant
+        </Typography>
       </Box>
-      <Dialog open={assignDialogOpen} onClose={handleCloseAssignDialog} maxWidth="xs" fullWidth>
-        <DialogTitle>Assign Task: {selectedTask?.title}</DialogTitle>
-        <DialogContent>
+
+      {/* Assign Task Dialog */}
+      <Dialog open={assignDialogOpen} onClose={handleCloseAssignDialog} maxWidth="sm" fullWidth sx={{ '& .MuiDialog-paper': { borderRadius: '12px' } }}>
+        <DialogTitle sx={{ fontSize: '1.1rem', fontWeight: 600, borderBottom: '1px solid rgba(0,0,0,0.08)', py: 2 }}>
+          Assign Task: {selectedTask?.title}
+        </DialogTitle>
+        <DialogContent sx={{ py: 2 }}>
           {selectedTask?.assignee && (
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle2" color="text.secondary">Current Recommended Assignee:</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                <Avatar src={selectedTask.assignee.avatar} sx={{ width: 24, height: 24, mr: 1 }} />
-                <Typography variant="body2">{selectedTask.assignee.name}</Typography>
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" color="text.secondary" sx={{ fontSize: '0.85rem', mb: 1 }}>
+                Current Assignee:
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Avatar src={selectedTask.assignee.avatar} sx={{ width: 28, height: 28 }} />
+                <Typography variant="body2" sx={{ fontSize: '0.9rem', fontWeight: 500 }}>
+                  {selectedTask.assignee.name}
+                </Typography>
                 <Chip
-                  icon={<PercentIcon sx={{ fontSize: '0.8rem !important' }} />}
+                  icon={<PercentIcon sx={{ fontSize: '0.9rem !important', ml: 0.5 }} />}
                   label={`${selectedTask.assignee.match_percentage || 0}%`}
                   size="small"
                   variant="outlined"
-                  sx={{ ml: 1, height: 20, fontSize: '0.65rem', borderColor: 'rgba(0,0,0,0.1)' }}
+                  sx={{
+                    fontSize: '0.75rem',
+                    height: 24,
+                    borderRadius: '6px',
+                    borderColor: '#4CAF50',
+                    backgroundColor: 'rgba(76, 175, 80, 0.05)',
+                    color: '#4CAF50',
+                    '& .MuiChip-icon': { color: '#4CAF50' }
+                  }}
                 />
               </Box>
             </Box>
           )}
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
-            Select an assignee:
+          <Typography variant="subtitle2" color="text.secondary" sx={{ fontSize: '0.85rem', mb: 1.5 }}>
+            Select an Assignee:
           </Typography>
           {isLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-              <CircularProgress size={24} />
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+              <CircularProgress size={28} />
             </Box>
           ) : selectedTask?.assignableUsers?.length > 0 ? (
-            <List dense>
+            <List dense sx={{ py: 0 }}>
               {selectedTask.assignableUsers.map((user) => (
                 <ListItem
                   key={user._id}
                   button
                   onClick={() => handleSelectAssignee(user)}
                   sx={{
-                    border: selectedTask.assignee?._id === user._id ? '2px solid #4CAF50' : 'none',
-                    borderRadius: '4px',
-                    mb: 1
+                    border: selectedTask.assignee?._id === user._id ? '1px solid #4CAF50' : '1px solid rgba(0,0,0,0.1)',
+                    borderRadius: '8px',
+                    mb: 1,
+                    py: 1,
+                    px: 2,
+                    backgroundColor: selectedTask.assignee?._id === user._id ? 'rgba(76, 175, 80, 0.05)' : 'transparent',
+                    '&:hover': { backgroundColor: 'rgba(0,0,0,0.03)' }
                   }}
                 >
-                  <Avatar src={user.avatar} sx={{ width: 24, height: 24, mr: 1 }} />
-                  <ListItemText primary={user.name} />
+                  <Avatar src={user.avatar} sx={{ width: 28, height: 28, mr: 1.5 }} />
+                  <ListItemText 
+                    primary={user.name} 
+                    primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: 500 }}
+                  />
                   <Chip
-                    icon={<PercentIcon sx={{ fontSize: '0.8rem !important' }} />}
+                    icon={<PercentIcon sx={{ fontSize: '0.9rem !important', ml: 0.5 }} />}
                     label={`${user.match_percentage || 0}%`}
                     size="small"
                     variant="outlined"
-                    sx={{ ml: 1, height: 20, fontSize: '0.65rem', borderColor: 'rgba(0,0,0,0.1)' }}
+                    sx={{
+                      fontSize: '0.75rem',
+                      height: 24,
+                      borderRadius: '6px',
+                      borderColor: selectedTask.assignee?._id === user._id ? '#4CAF50' : 'rgba(0,0,0,0.1)',
+                      backgroundColor: selectedTask.assignee?._id === user._id ? 'rgba(76, 175, 80, 0.05)' : 'transparent',
+                      color: selectedTask.assignee?._id === user._id ? '#4CAF50' : 'inherit',
+                      '& .MuiChip-icon': {
+                        color: selectedTask.assignee?._id === user._id ? '#4CAF50' : 'inherit'
+                      }
+                    }}
                   />
                 </ListItem>
               ))}
             </List>
           ) : (
-            <Typography variant="body2" color="text.secondary">No suitable users available for assignment.</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.9rem', py: 2 }}>
+              No suitable users available for assignment.
+            </Typography>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseAssignDialog}>Close</Button>
+        <DialogActions sx={{ p: 2, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+          <Button 
+            onClick={handleCloseAssignDialog} 
+            sx={{ 
+              textTransform: 'none', 
+              color: '#546E7A', 
+              fontSize: '0.9rem',
+              '&:hover': { backgroundColor: 'rgba(0,0,0,0.03)' }
+            }}
+          >
+            Close
+          </Button>
         </DialogActions>
       </Dialog>
-      <Dialog open={editDialogOpen} onClose={handleCloseEditDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>Edit Task</DialogTitle>
-        <DialogContent>
+
+      {/* Edit Task Dialog */}
+      <Dialog open={editDialogOpen} onClose={handleCloseEditDialog} maxWidth="sm" fullWidth sx={{ '& .MuiDialog-paper': { borderRadius: '12px' } }}>
+        <DialogTitle sx={{ fontSize: '1.1rem', fontWeight: 600, borderBottom: '1px solid rgba(0,0,0,0.08)', py: 2 }}>
+          Edit Task
+        </DialogTitle>
+        <DialogContent sx={{ py: 3 }}>
           <TextField
             fullWidth
-            label="Title"
+            label="Task Title"
             value={editTask?.title || ''}
             onChange={(e) => setEditTask({ ...editTask, title: e.target.value })}
-            sx={{ mt: 2 }}
+            sx={{ mb: 2, '& .MuiInputLabel-root': { fontSize: '0.9rem' }, '& .MuiInputBase-input': { fontSize: '0.9rem' } }}
           />
           <TextField
             fullWidth
@@ -462,32 +765,51 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
             value={editTask?.description || ''}
             onChange={(e) => setEditTask({ ...editTask, description: e.target.value })}
             multiline
-            rows={3}
-            sx={{ mt: 2 }}
+            rows={4}
+            sx={{ mb: 2, '& .MuiInputLabel-root': { fontSize: '0.9rem' }, '& .MuiInputBase-input': { fontSize: '0.9rem' } }}
           />
           {editTask?.assignableUsers?.length > 0 && (
             <Box sx={{ mt: 2 }}>
-              <Typography variant="subtitle1" sx={{ mb: 1 }}>Assigned Users</Typography>
-              <List dense>
+              <Typography variant="subtitle2" sx={{ fontSize: '0.9rem', fontWeight: 500, mb: 1.5 }}>
+                Assign to:
+              </Typography>
+              <List dense sx={{ py: 0 }}>
                 {editTask.assignableUsers.map((user) => (
                   <ListItem
                     key={user._id}
                     button
                     onClick={() => setEditTask({ ...editTask, assignee: user })}
                     sx={{
-                      border: editTask.assignee?._id === user._id ? '2px solid #4CAF50' : 'none',
-                      borderRadius: '4px',
-                      mb: 1
+                      border: editTask.assignee?._id === user._id ? '1px solid #4CAF50' : '1px solid rgba(0,0,0,0.1)',
+                      borderRadius: '8px',
+                      mb: 1,
+                      py: 1,
+                      px: 2,
+                      backgroundColor: editTask.assignee?._id === user._id ? 'rgba(76, 175, 80, 0.05)' : 'transparent',
+                      '&:hover': { backgroundColor: 'rgba(0,0,0,0.03)' }
                     }}
                   >
-                    <Avatar src={user.avatar} sx={{ width: 24, height: 24, mr: 1 }} />
-                    <ListItemText primary={user.name} />
+                    <Avatar src={user.avatar} sx={{ width: 28, height: 28, mr: 1.5 }} />
+                    <ListItemText 
+                      primary={user.name} 
+                      primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: 500 }}
+                    />
                     <Chip
-                      icon={<PercentIcon sx={{ fontSize: '0.8rem !important' }} />}
+                      icon={<PercentIcon sx={{ fontSize: '0.9rem !important', ml: 0.5 }} />}
                       label={`${user.match_percentage || 0}%`}
                       size="small"
                       variant="outlined"
-                      sx={{ ml: 1, height: 20, fontSize: '0.65rem', borderColor: 'rgba(0,0,0,0.1)' }}
+                      sx={{
+                        fontSize: '0.75rem',
+                        height: 24,
+                        borderRadius: '6px',
+                        borderColor: editTask.assignee?._id === user._id ? '#4CAF50' : 'rgba(0,0,0,0.1)',
+                        backgroundColor: editTask.assignee?._id === user._id ? 'rgba(76, 175, 80, 0.05)' : 'transparent',
+                        color: editTask.assignee?._id === user._id ? '#4CAF50' : 'inherit',
+                        '& .MuiChip-icon': {
+                          color: editTask.assignee?._id === user._id ? '#4CAF50' : 'inherit'
+                        }
+                      }}
                     />
                   </ListItem>
                 ))}
@@ -495,9 +817,33 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
             </Box>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseEditDialog}>Cancel</Button>
-          <Button onClick={handleSaveEdit} variant="contained">Save</Button>
+        <DialogActions sx={{ p: 2, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+          <Button 
+            onClick={handleCloseEditDialog} 
+            sx={{ 
+              textTransform: 'none', 
+              color: '#546E7A', 
+              fontSize: '0.9rem',
+              '&:hover': { backgroundColor: 'rgba(0,0,0,0.03)' }
+            }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSaveEdit} 
+            variant="contained" 
+            sx={{ 
+              borderRadius: '8px', 
+              background: '#2196F3', 
+              textTransform: 'none', 
+              px: 3, 
+              py: 0.8, 
+              fontSize: '0.9rem',
+              '&:hover': { background: '#1E88E5' }
+            }}
+          >
+            Save
+          </Button>
         </DialogActions>
       </Dialog>
     </Paper>
