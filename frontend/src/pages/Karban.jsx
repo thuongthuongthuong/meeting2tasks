@@ -199,10 +199,6 @@ export default function Karban() {
   const sourceList = getList(source.droppableId);
   const destList = getList(destination.droppableId);
   const taskToMove = sourceList[source.index];
-  await updateTask(taskToMove.id, {
-    ...taskToMove,
-    status: getStatus(destination.droppableId),
-  });
   // Remove from source
   sourceList.splice(source.index, 1);
 
@@ -221,6 +217,11 @@ export default function Karban() {
   // Update lists
   setList(source.droppableId, sourceList);
   setList(destination.droppableId, destList);
+  
+  await updateTask(taskToMove.id, {
+    ...taskToMove,
+    status: getStatus(destination.droppableId),
+  });
 };
 
 const handleEditTask = async (task) => {
@@ -235,7 +236,7 @@ const handleEditTask = async (task) => {
     userId: task.userId,
     status: task.status,
   };
-  const response = await updateTask(selectedTask.id, updatedTask);
+   await updateTask(selectedTask.id, updatedTask);
   switch (selectedTask.status) {
     case 'To Do':
       setTodo((prev) => prev.map(t => (t.id === selectedTask.id ? updatedTask : t)));
@@ -261,7 +262,7 @@ const handleAddTask = async (newTask) => {
   // Generate a unique ID with format TASK-XXX
   const generateTaskId = () => {
     const randomId = Math.floor(1000 + Math.random() * 9000).toString().substring(0, 9);
-    return {randomId};
+    return randomId;
   };
   
   // Create the task object with default values plus user input
@@ -272,12 +273,18 @@ const handleAddTask = async (newTask) => {
     description: newTask.description || '',
     priority: newTask.priority || 'Medium',
     story_points: newTask.storyPoints || 1,
-    userId: newTask.assignee || users[0],
+    userId: newTask.userId || users[0]._id,
+    status: 'To Do',
   };
   setTodo((prev) => [...prev, taskToAdd]);
   
   setTaskDialogOpen(false);
-  await addTask(currentSprint?.sprint?.id, taskToAdd);
+  try {
+          const response = await addTask(currentSprint?.sprint?.id, taskToAdd);
+          console.log(response)
+        } catch (error) {
+          console.error(error);
+        }
   fetchSprint();
 };
 
