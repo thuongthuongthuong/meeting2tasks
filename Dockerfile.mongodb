@@ -1,0 +1,15 @@
+# Sử dụng image MongoDB chính thức
+FROM mongo:6.0
+
+# Cài đặt các công cụ cần thiết
+RUN apt-get update && apt-get install -y netcat wget
+
+# Tải và cài đặt mongosh phiên bản mới
+RUN wget --spider https://downloads.mongodb.com/compass/mongosh-2.3.1-linux-x64.tgz && \
+    wget https://downloads.mongodb.com/compass/mongosh-2.3.1-linux-x64.tgz && \
+    tar -zxvf mongosh-2.3.1-linux-x64.tgz && \
+    mv mongosh-2.3.1-linux-x64/bin/mongosh /usr/local/bin/ && \
+    rm -rf mongosh-2.3.1-linux-x64 mongosh-2.3.1-linux-x64.tgz
+
+# Tạo thư mục log (nếu cần)
+RUN mkdir -p /var/log/mongodb

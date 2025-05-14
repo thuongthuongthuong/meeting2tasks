@@ -1,4 +1,3 @@
-// TaskCard.js
 import React from 'react';
 import {
   Card,
@@ -6,7 +5,7 @@ import {
   Typography,
   Box,
   Avatar,
-  Chip
+  Chip,
 } from '@mui/material';
 import { Draggable } from 'react-beautiful-dnd';
 import BugReportIcon from '@mui/icons-material/BugReport';
@@ -26,7 +25,7 @@ const TaskCard = ({ task, index, onClick, user }) => {
         return <CheckBoxOutlineBlankIcon fontSize="small" sx={{ color: '#2684FF' }} />;
     }
   };
-  
+
   const getPriorityIcon = () => {
     switch(task.priority) {
       case 'High':
@@ -38,9 +37,11 @@ const TaskCard = ({ task, index, onClick, user }) => {
         return <RemoveIcon fontSize="small" sx={{ color: '#FF9800' }} />;
     }
   };
-  
+
+  const draggableId = task.id ? task.id.toString() : `task-${index}`;
+
   return (
-    <Draggable draggableId={task.id} index={index}>
+    <Draggable draggableId={draggableId} index={index}>
       {(provided, snapshot) => (
         <Card
           ref={provided.innerRef}
@@ -51,15 +52,15 @@ const TaskCard = ({ task, index, onClick, user }) => {
           sx={{
             mb: 2,
             cursor: 'pointer',
-            opacity: snapshot.isDragging ? 0.8 : 1,
-            // Position fixed during drag prevents other cards from moving
-            position: snapshot.isDragging ? 'fixed' : 'relative',
-            zIndex: snapshot.isDragging ? 999 : 'auto',
-            width: snapshot.isDragging ? 280 - 16 : 'auto', // Adjust width when dragging
+            opacity: snapshot.isDragging ? 0.9 : 1,
+            boxShadow: snapshot.isDragging ? '0 4px 12px rgba(0,0,0,0.15)' : '0 2px 4px rgba(0,0,0,0.1)',
+            borderRadius: 1,
+            transition: 'all 0.2s ease-in-out',
             '&:hover': {
-              boxShadow: '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)',
-              backgroundColor: '#FAFBFC'
-            }
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              backgroundColor: '#F9FAFB',
+            },
+            width: snapshot.isDragging ? 280 : 'auto',
           }}
         >
           <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>

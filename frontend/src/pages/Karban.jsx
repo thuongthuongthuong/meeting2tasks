@@ -1,12 +1,11 @@
-// App.js
 import React, { useState, useEffect } from 'react';
-import { 
-  Box, 
-  CssBaseline, 
-  Typography, 
-  AppBar, 
-  Toolbar, 
-  Button, 
+import {
+  Box,
+  CssBaseline,
+  Typography,
+  AppBar,
+  Toolbar,
+  Button,
   IconButton,
   TextField,
   InputAdornment,
@@ -23,27 +22,28 @@ import {
   List,
   ListItem,
   ListItemText,
-  FormControl,
-  InputLabel,
-  Select,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
-import FlashOnIcon from '@mui/icons-material/FlashOn';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import SmartToyIcon from '@mui/icons-material/SmartToy';
 import AddIcon from '@mui/icons-material/Add';
 import HistoryIcon from '@mui/icons-material/History';
+import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
+import BugReportIcon from '@mui/icons-material/BugReport';
+import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import RemoveIcon from '@mui/icons-material/Remove';
 import { DragDropContext, Droppable } from 'react-beautiful-dnd';
 import StatusColumn from '../components/StatusColumn';
 import { mockSprints } from '../mockData/data';
 import TaskDialog from '../components/TaskDialog';
-import AIAssistant from '../components/AIAssistant';
 import TaskListSidebar from '../components/TaskListSidebar';
 import { useParams } from 'react-router-dom';
 import { getUserByPRojectID, updateTask, getSprintByProjectID, getSprintDetails, addTask, deleteTask } from '../utils/api';
 //------------------------------------------------------
+
 
 export default function Karban() {
   const { id } = useParams();
@@ -54,7 +54,7 @@ export default function Karban() {
   const [sprintDialogOpen, setSprintDialogOpen] = useState(false);
   const [taskDetailOpen, setTaskDetailOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState('');
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [users, setUsers] = useState([]);
   const [todo, setTodo] = useState([]);
@@ -71,7 +71,7 @@ export default function Karban() {
         const response = await getUserByPRojectID(id);
         setUsers(response.data);
       } catch (error) {
-        console.error('Error fetching user:', error);
+        console.error('Error fetching users:', error);
       }
     }
   const fetchSprint = async () => {
@@ -109,31 +109,62 @@ export default function Karban() {
     setAnchorEl(event.currentTarget);
   };
 
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-  };
+  const fetchSprintsAndTasks = async () => {
+    try {
+      const sprintIds = await getSprintIdsByProjectId(projectId);
+      const sprintDetails = await Promise.all(sprintIds.map(async (sprintId) => {
+        const sprintData = await getSprintWithTasks(sprintId);
+        const tasksByStatus = { todo: [], inProgress: [], inReview: [], done: [] };
+        if (sprintData.tasks) {
+          sprintData.tasks.forEach(task => {
+            const mappedTask = mapTaskDTOToTask(task, users);
+            if (mappedTask) {
+              switch (mappedTask.status) {
+                case 'To Do':
+                  tasksByStatus.todo.push(mappedTask);
+                  break;
+                case 'In Progress':
+                  tasksByStatus.inProgress.push(mappedTask);
+                  break;
+                case 'In Review':
+                  tasksByStatus.inReview.push(mappedTask);
+                  break;
+                case 'Done':
+                  tasksByStatus.done.push(mappedTask);
+                  break;
+                default:
+                  tasksByStatus.todo.push(mappedTask);
+              }
+            }
+          });
+        }
+        return { ...sprintData.sprint, tasks: tasksByStatus, id: sprintData.sprint.id };
+      }));
 
   const handleOpenSprintDialog = () => {
     setSprintDialogOpen(true);
   };
 
-  const handleCloseSprintDialog = () => {
-    setSprintDialogOpen(false);
-  };
+  useEffect(() => {
+    if (currentSprint) setTasks(currentSprint.tasks || { todo: [], inProgress: [], inReview: [], done: [] });
+  }, [currentSprint]);
 
+  const handleMenuClick = (event) => setAnchorEl(event.currentTarget);
+  const handleMenuClose = () => setAnchorEl(null);
+  const handleOpenSprintDialog = () => setSprintDialogOpen(true);
+  const handleCloseSprintDialog = () => setSprintDialogOpen(false);
   const handleChangeSprint = (sprint) => {
     setCurrentSprintId(sprint);
     handleCloseSprintDialog();
   };
-
   const handleTaskClick = (task) => {
     task.assignee = users.find(user => user._id === task.userId);
     setSelectedTask(task);
     setTaskDetailOpen(true);
   };
-
   const handleCloseTaskDetail = () => {
     setTaskDetailOpen(false);
+    setSelectedTask(null);
   };
 
   const onDragEnd = async (result) => {
@@ -291,29 +322,25 @@ const handleAddTask = async (newTask) => {
   
   // Calculate days remaining in sprint
   const calculateDaysRemaining = () => {
-    if (currentSprint.status === 'completed') return 0;
-    
-    const endDate = new Date(currentSprint.endDate);
+    if (currentSprint?.status === 'completed') return 0;
+    const endDate = new Date(currentSprint?.endDate);
     const today = new Date();
     const diffTime = endDate - today;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
     return diffDays > 0 ? diffDays : 0;
   };
 
-  const handleCompleteSprint = () => {
-    const updatedSprints = sprints.map(sprint => {
-      if (sprint.id === currentSprint.id) {
-        return {
-          ...sprint,
-          status: 'completed'
-        };
-      }
-      return sprint;
-    });
-    
-    setSprints(updatedSprints);
-    setCurrentSprint({ ...currentSprint, status: 'completed' });
+  const handleCompleteSprint = async () => {
+    try {
+      await completeSprint(currentSprint.id);
+      const updatedSprints = sprints.map(sprint =>
+        sprint.id === currentSprint.id ? { ...sprint, status: 'completed' } : sprint
+      );
+      setSprints(updatedSprints);
+      setCurrentSprint({ ...currentSprint, status: 'completed' });
+    } catch (error) {
+      console.error('Error completing sprint:', error);
+    }
   };
   const handleDeleteTask = async () => {
     await deleteTask(selectedTask.id);
@@ -344,16 +371,17 @@ const handleAddTask = async (newTask) => {
             <Typography variant="h6" component="div" sx={{ flexGrow: 0, fontWeight: 500 }}>
               Board
             </Typography>
-            <Button 
-              sx={{ ml: 2 }} 
-              variant="outlined" 
+            <Button
+              sx={{ ml: 2 }}
+              variant="outlined"
               onClick={handleOpenSprintDialog}
               startIcon={<HistoryIcon />}
             >
                {currentSprint?.sprint?.name}
+
             </Button>
             <Box sx={{ flexGrow: 1 }} />
-            {currentSprint.status !== 'completed' && (
+            {currentSprint?.status !== 'completed' && (
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <AccessTimeIcon sx={{ color: 'text.secondary', mr: 0.5 }} fontSize="small" />
                 <Typography variant="body2" color="text.secondary" sx={{ mr: 2 }}>
@@ -361,20 +389,20 @@ const handleAddTask = async (newTask) => {
                 </Typography>
               </Box>
             )}
-            {currentSprint.status === 'active' ? (
-              <Button 
-                variant="contained" 
-                color="primary" 
+            {currentSprint?.status === 'active' ? (
+              <Button
+                variant="contained"
+                color="primary"
                 sx={{ mr: 1 }}
                 onClick={handleCompleteSprint}
               >
                 Complete sprint
               </Button>
             ) : (
-              <Chip 
-                label="Completed" 
-                color="success" 
-                variant="outlined" 
+              <Chip
+                label="Completed"
+                color="success"
+                variant="outlined"
                 sx={{ mr: 1 }}
               />
             )}
@@ -411,15 +439,13 @@ const handleAddTask = async (newTask) => {
             />
             <AvatarGroup max={4} sx={{ mr: 2 }}>
               {users.map(user => (
-                <Tooltip key={user.id} title={user.name}>
+                <Tooltip key={user._id} title={user.name}>
                   <Avatar alt={user.name} src={user.avatar} sx={{ width: 32, height: 32 }} />
                 </Tooltip>
               ))}
             </AvatarGroup>
           </Box>
-          
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            
             <Button
               variant="outlined"
               size="small"
@@ -433,40 +459,41 @@ const handleAddTask = async (newTask) => {
         </Box>
 
         <DragDropContext onDragEnd={onDragEnd}>
-          <Box sx={{ 
-            display: 'flex', 
-            flexGrow: 1, 
-            p: 2, 
-            backgroundColor: '#F4F5F7', 
+          <Box sx={{
+            display: 'flex',
+            flexGrow: 1,
+            p: 2,
+            backgroundColor: '#F4F5F7',
             overflowX: 'auto',
             gap: 2
           }}>
-            <StatusColumn 
-              title="TO DO" 
+            <StatusColumn
+              title="TO DO"
               id="todo"
               users={users}
               count={todo?.length} 
               tasks={todo}
+
               onTaskClick={handleTaskClick}
             />
-            <StatusColumn 
-              title="IN PROGRESS" 
+            <StatusColumn
+              title="IN PROGRESS"
               id="inProgress"
               users={users}
               count={inProgress?.length} 
               tasks={inProgress}
               onTaskClick={handleTaskClick}
             />
-            <StatusColumn 
-              title="IN REVIEW" 
+            <StatusColumn
+              title="IN REVIEW"
               id="inReview"
               users={users}
               count={inReview?.length} 
               tasks={inReview}
               onTaskClick={handleTaskClick}
             />
-            <StatusColumn 
-              title="DONE" 
+            <StatusColumn
+              title="DONE"
               id="done"
               users={users}
               count={done?.length} 
@@ -480,7 +507,6 @@ const handleAddTask = async (newTask) => {
       />
           </Box>
         </DragDropContext>
-        
       </Box>
 
       {/* Sprint Selection Dialog */}
@@ -513,16 +539,63 @@ const handleAddTask = async (newTask) => {
               {selectedTask.id && selectedTask.id.length >= 9 ? selectedTask.id.slice(-9, -2) : selectedTask.id} - {selectedTask.title}
             </Box>
           </DialogTitle>
-          <DialogContent>
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>Details</Typography>
-              <Box sx={{ display: 'flex', mt: 1 }}>
-                <Box sx={{ width: '50%' }}>
-                  <Typography variant="body2" color="text.secondary">Type</Typography>
-                  <Typography variant="body1" sx={{ mb: 1, textTransform: 'capitalize' }}>{selectedTask.type}</Typography>
-                  
-                  <Typography variant="body2" color="text.secondary">Priority</Typography>
-                  <Typography variant="body1" sx={{ mb: 1, textTransform: 'capitalize' }}>{selectedTask.priority}</Typography>
+          <DialogContent sx={{ p: 2, pt: 1 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 500, mb: 2, color: '#374151' }}>
+              Details
+            </Typography>
+
+            {/* Details Section */}
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: 2,
+                mb: 2,
+              }}
+            >
+              {/* Type */}
+              <Box>
+                <Typography variant="caption" color="text.secondary">
+                  Type
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
+                  {selectedTask.type === 'bug' ? (
+                    <BugReportIcon fontSize="small" sx={{ color: '#DE350B', mr: 0.5 }} />
+                  ) : (
+                    <CheckBoxOutlineBlankIcon fontSize="small" sx={{ color: '#2684FF', mr: 0.5 }} />
+                  )}
+                  <Typography variant="body2" sx={{ color: '#374151' }}>
+                    {selectedTask.type.charAt(0).toUpperCase() + selectedTask.type.slice(1)}
+                  </Typography>
+                </Box>
+              </Box>
+
+              {/* Story Points */}
+              <Box>
+                <Typography variant="caption" color="text.secondary">
+                  Story Points
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.5, color: '#374151' }}>
+                  {selectedTask.storyPoints}
+                </Typography>
+              </Box>
+
+              {/* Priority */}
+              <Box>
+                <Typography variant="caption" color="text.secondary">
+                  Priority
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
+                  {selectedTask.priority === 'high' ? (
+                    <ArrowUpwardIcon fontSize="small" sx={{ color: '#DE350B', mr: 0.5 }} />
+                  ) : selectedTask.priority === 'low' ? (
+                    <ArrowDownwardIcon fontSize="small" sx={{ color: '#2684FF', mr: 0.5 }} />
+                  ) : (
+                    <RemoveIcon fontSize="small" sx={{ color: '#FF9800', mr: 0.5 }} />
+                  )}
+                  <Typography variant="body2" sx={{ color: '#374151' }}>
+                    {selectedTask.priority.charAt(0).toUpperCase() + selectedTask.priority.slice(1)}
+                  </Typography>
                 </Box>
                 <Box sx={{ width: '50%' }}>
                   <Typography variant="body2" color="text.secondary">Story Points</Typography>
@@ -540,10 +613,14 @@ const handleAddTask = async (newTask) => {
                 </Box>
               </Box>
             </Box>
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 500, mb: 1 }}>Description</Typography>
-              <Typography variant="body1">
-                {selectedTask.description || "No description provided for this task."}
+
+            {/* Description */}
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 500, mb: 1, color: '#374151' }}>
+                Description
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#6B7280' }}>
+                {selectedTask.description || 'No description provided for this task.'}
               </Typography>
             </Box>
           </DialogContent>
@@ -554,16 +631,18 @@ const handleAddTask = async (newTask) => {
           </DialogActions>
         </Dialog>
       )}
-      {/* Add Task Dialog */}
+      {/* TaskDialog */}
       <TaskDialog
         open={taskDialogOpen}
-        onClose={() => setTaskDialogOpen(false)}
-        onAdd={handleAddTask}
+        onClose={() => {
+          setTaskDialogOpen(false);
+          if (!isEditMode) setSelectedTask(null);
+        }}
+        onSubmit={isEditMode ? handleUpdateTask : handleAddTask}
         users={users}
         task={selectedTask}
         onEdit={handleEditTask}
       />
-      {/* <AIAssistant/> */}
-      </>
+    </>
   );
 }

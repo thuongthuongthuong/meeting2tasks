@@ -38,6 +38,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import InsertChartIcon from '@mui/icons-material/InsertChart';
 import PersonIcon from '@mui/icons-material/Person';
+
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import HistoryIcon from '@mui/icons-material/History';
@@ -57,6 +58,7 @@ const generateRandomId = (length = 20) => {
 };
 
 const AISidebar = ({ onAddTask, teamMembers, projectName, id, sprintId }) => {
+
   const [prompt, setPrompt] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -71,14 +73,13 @@ const AISidebar = ({ onAddTask, teamMembers, projectName, id, sprintId }) => {
   const [currentTask, setCurrentTask] = useState(null);
   const [editedTask, setEditedTask] = useState(null);
 
-  // Danh sách gợi ý nhanh
+
   const quickSuggestions = [
     "Distribute tasks for this week",
     "Optimize the schedule",
     "Suggest task priorities"
   ];
 
-  // Xử lý khi gửi prompt
   const handleSubmitPrompt = async () => {
     if (!prompt.trim()) return;
 
@@ -99,17 +100,140 @@ const AISidebar = ({ onAddTask, teamMembers, projectName, id, sprintId }) => {
     setPromptHistory([{ text: prompt, timestamp: new Date() }, ...promptHistory]);
     
     setIsLoading(false);
+
     setPrompt('');
   };
 
-  // Xử lý khi nhấn Enter
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      handleSubmitPrompt();
+  const assignTasks = async (tasks) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`http://localhost:8082/api/assign-users-to-tasks?projectId=${projectId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tasks),
+      });
+      if (!response.ok) throw new Error('Failed to assign tasks');
+      const assignedTasks = await response.json();
+      setSuggestions(assignedTasks.map(task => ({
+        ...task,
+        assignee: task.assignableUsers?.length > 0 && !task.assignee 
+          ? task.assignableUsers.reduce((prev, curr) => 
+              (prev.match_percentage || 0) > (curr.match_percentage || 0) ? prev : curr, task.assignableUsers[0])
+          : task.assignee,
+        assignableUsers: task.assignableUsers || []
+      })));
+    } catch (error) {
+      console.error('Error assigning tasks:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Xử lý khi chọn gợi ý nhanh
+  const assignSingleTask = async (task, assignee = null) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`http://localhost:8082/api/assign-users-to-tasks?projectId=${projectId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify([{ ...task, assignee: assignee || task.assignee || task.assignableUsers?.[0] }]),
+      });
+      if (!response.ok) throw new Error('Failed to assign task');
+      const assignedTasks = await response.json();
+      console.log('Assigned single task from API:', assignedTasks);
+
+      const updatedTask = assignedTasks[0] || task;
+      const newAssignee = assignee || updatedTask.assignee || (updatedTask.assignableUsers?.length > 0 && !updatedTask.assignee 
+        ? updatedTask.assignableUsers.reduce((prev, curr) => 
+            (prev.match_percentage || 0) > (curr.match_percentage || 0) ? prev : curr, updatedTask.assignableUsers[0])
+        : null);
+      
+      setSuggestions(prevSuggestions => prevSuggestions.map(t =>
+        t.id === task.id ? { ...t, ...updatedTask, assignee: newAssignee } : t
+      ));
+      return { ...updatedTask, assignee: newAssignee };
+    } catch (error) {
+      console.error('Error assigning single task:', error);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAssignTask = async (task) => {
+    const taskToAssign = { ...task };
+    const defaultAssignee = !taskToAssign.assignee && taskToAssign.assignableUsers?.length > 0 
+      ? taskToAssign.assignableUsers.reduce((prev, curr) => 
+          (prev.match_percentage || 0) > (curr.match_percentage || 0) ? prev : curr, taskToAssign.assignableUsers[0])
+      : taskToAssign.assignee;
+    taskToAssign.assignee = defaultAssignee;
+    
+    setSelectedTask(taskToAssign);
+    setAssignDialogOpen(true);
+
+    const result = await assignSingleTask(taskToAssign);
+    if (result) {
+      const updatedAssignee = !result.assignee && result.assignableUsers?.length > 0 
+        ? result.assignableUsers.reduce((prev, curr) => 
+            (prev.match_percentage || 0) > (curr.match_percentage || 0) ? prev : curr, result.assignableUsers[0])
+        : result.assignee;
+      setSelectedTask(prev => ({ ...prev, ...result, assignee: updatedAssignee }));
+    }
+  };
+
+  const handleSelectAssignee = async (user) => {
+    if (!selectedTask) return;
+    
+    const updatedTask = { ...selectedTask, assignee: user };
+    setSelectedTask(updatedTask);
+    
+    const result = await assignSingleTask(updatedTask, user);
+    if (result) {
+      setSelectedTask(result);
+    }
+    setAssignDialogOpen(false);
+  };
+
+  const handleCloseAssignDialog = () => {
+    setAssignDialogOpen(false);
+    setSelectedTask(null);
+  };
+
+  const handleAssignAll = () => {
+    assignTasks(suggestions);
+  };
+
+  const handleEditTask = (task) => {
+    const defaultAssignee = !task.assignee && task.assignableUsers?.length > 0 
+      ? task.assignableUsers.reduce((prev, curr) => 
+          (prev.match_percentage || 0) > (curr.match_percentage || 0) ? prev : curr, task.assignableUsers[0])
+      : task.assignee;
+    setEditTask({
+      ...task,
+      assignee: defaultAssignee
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (editTask) {
+      setSuggestions(prevSuggestions => prevSuggestions.map(task =>
+        task.id === editTask.id ? { ...editTask } : task
+      ));
+
+      if (editTask.assignee) {
+        await assignSingleTask(editTask, editTask.assignee);
+      }
+    }
+    setEditDialogOpen(false);
+    setEditTask(null);
+  };
+
+  const handleCloseEditDialog = () => {
+    setEditDialogOpen(false);
+    setEditTask(null);
+  };
+
+  const handleKeyPress = (e) => e.key === 'Enter' && handleSubmitPrompt();
   const handleQuickSuggestion = (suggestion) => {
     setPrompt(suggestion);
   };
@@ -210,7 +334,6 @@ const AISidebar = ({ onAddTask, teamMembers, projectName, id, sprintId }) => {
     setEditDialogOpen(false);
   };
 
-  // Màu cho priority
   const getPriorityColor = (priority) => {
     switch(priority?.toLowerCase()) {
       case 'high':
@@ -231,15 +354,14 @@ const AISidebar = ({ onAddTask, teamMembers, projectName, id, sprintId }) => {
         width: '100%', 
         height: '100%', 
         display: 'flex', 
-        flexDirection: 'column',
-        overflow: 'hidden',
-        position: 'relative',
-        background: 'linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(250,250,252,0.95) 100%)',
-        borderLeft: '1px solid rgba(0,0,0,0.08)',
-        borderRadius: '8px'
+        flexDirection: 'column', 
+        overflow: 'hidden', 
+        borderRadius: '12px', 
+        background: 'linear-gradient(180deg, #FFFFFF 0%, #F9FAFB 100%)',
+        border: '1px solid rgba(0,0,0,0.05)'
       }}
     >
-      {/* Background animation */}
+      {/* Background Animation */}
       <Box 
         sx={{
           position: 'absolute',
@@ -271,27 +393,18 @@ const AISidebar = ({ onAddTask, teamMembers, projectName, id, sprintId }) => {
       />
 
       {/* Header */}
-      <Box 
-        sx={{ 
-          p: 2, 
-          borderBottom: '1px solid rgba(0,0,0,0.08)',
-          background: 'linear-gradient(90deg, rgba(30,30,30,0.02) 0%, rgba(138,43,226,0.05) 100%)',
-          position: 'relative',
-          zIndex: 1,
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-          <SmartToyIcon sx={{ 
-            mr: 1, 
-            color: '#9C27B0',
-            filter: 'drop-shadow(0px 0px 3px rgba(156,39,176,0.3))'
-          }} />
-          <Typography variant="h6" sx={{ 
-            fontWeight: 500,
-            background: 'linear-gradient(90deg, #9C27B0, #2196F3)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent'
-          }}>
+      <Box sx={{ p: 2, borderBottom: '1px solid rgba(0,0,0,0.08)', position: 'relative', zIndex: 1, background: '#FFFFFF' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <SmartToyIcon sx={{ fontSize: 28, color: '#9C27B0', filter: 'drop-shadow(0px 1px 2px rgba(156,39,176,0.2))' }} />
+          <Typography 
+            variant="h6" 
+            sx={{ 
+              fontWeight: 600, 
+              background: 'linear-gradient(90deg, #9C27B0, #2196F3)', 
+              WebkitBackgroundClip: 'text', 
+              WebkitTextFillColor: 'transparent' 
+            }}
+          >
             AI Assistant
           </Typography>
         </Box>
@@ -299,9 +412,9 @@ const AISidebar = ({ onAddTask, teamMembers, projectName, id, sprintId }) => {
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           Let me suggest a few tasks for the team!
         </Typography>
-        
-        {/* Input prompt */}
-        <Box sx={{ position: 'relative' }}>
+
+        {/* Prompt Input */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
           <TextField
             fullWidth
             size="medium"
@@ -310,23 +423,18 @@ const AISidebar = ({ onAddTask, teamMembers, projectName, id, sprintId }) => {
             onChange={(e) => setPrompt(e.target.value)}
             onKeyPress={handleKeyPress}
             sx={{ 
-              mb: 1,
-              '& .MuiOutlinedInput-root': {
-                borderRadius: '12px',
-                '&:hover fieldset': {
-                  borderColor: 'rgba(30, 144, 255, 0.5)', // DodgerBlue with opacity
-                },
-                '&.Mui-focused fieldset': {
-                  borderColor: '#2196F3', // Material blue
-                  boxShadow: '0 0 0 2px rgba(33, 150, 243, 0.1)', // same blue with opacity
-                }
-              }
+              '& .MuiOutlinedInput-root': { 
+                borderRadius: '8px', 
+                backgroundColor: '#F9FAFB', 
+                '&:hover fieldset': { borderColor: '#2196F3' }, 
+                '&.Mui-focused fieldset': { borderColor: '#2196F3', boxShadow: '0 0 0 2px rgba(33, 150, 243, 0.1)' } 
+              },
+              '& .MuiInputBase-input': { fontSize: '0.9rem', py: 1 }
             }}
-            
-            InputProps={{
+            InputProps={{ 
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon sx={{ color: '#2196F3' }} />
+                  <SearchIcon sx={{ color: '#2196F3', fontSize: '1.2rem' }} />
                 </InputAdornment>
               ),
               endAdornment: (
@@ -359,9 +467,26 @@ const AISidebar = ({ onAddTask, teamMembers, projectName, id, sprintId }) => {
                     {isLoading ? <CircularProgress size={24} /> : 'Send'}
                   </Button>
                 </InputAdornment>
-              ),
+              )
             }}
           />
+          <Button 
+            variant="contained" 
+            onClick={handleSubmitPrompt} 
+            disabled={!prompt.trim() || isLoading} 
+            sx={{ 
+              borderRadius: '8px', 
+              background: '#2196F3', 
+              textTransform: 'none', 
+              px: 2, 
+              py: 0.8, 
+              '&:hover': { background: '#1E88E5' },
+              '&:disabled': { background: '#B0BEC5' }
+            }}
+            endIcon={isLoading ? <CircularProgress size={16} color="inherit" /> : <SendIcon sx={{ fontSize: '1.2rem' }} />}
+          >
+            Send
+          </Button>
         </Box>
         
         {/* Quick suggestions */}
@@ -430,6 +555,7 @@ const AISidebar = ({ onAddTask, teamMembers, projectName, id, sprintId }) => {
                 <CircularProgress size={40} sx={{ mb: 2, color: '#9C27B0' }} />
                 <Typography variant="body2" color="text.secondary">
                   Analyzing and generating suggestions...
+
                 </Typography>
               </Box>
             ) : suggestions.length > 0 ? (
@@ -604,7 +730,6 @@ const AISidebar = ({ onAddTask, teamMembers, projectName, id, sprintId }) => {
             )}
           </>
         )}
-
         {activeTab === 'history' && (
           <List disablePadding>
             {promptHistory.length > 0 ? (
@@ -649,27 +774,21 @@ const AISidebar = ({ onAddTask, teamMembers, projectName, id, sprintId }) => {
       </Box>
 
       {/* Footer */}
-      <Box sx={{ 
-        p: 1.5, 
-        borderTop: '1px solid rgba(0,0,0,0.08)', 
-        display: 'flex', 
-        justifyContent: 'space-between',
-        position: 'relative',
-        zIndex: 1,
-        backgroundColor: 'rgba(250,250,252,0.9)'
-      }}>
-        <Button
-          size="small"
-          startIcon={<InsertChartIcon />}
-          sx={{
-            textTransform: 'none',
-            color: '#2196F3'
+      <Box sx={{ p: 1.5, borderTop: '1px solid rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 1, backgroundColor: '#FFFFFF' }}>
+        <Button 
+          size="small" 
+          startIcon={<InsertChartIcon sx={{ fontSize: '1.1rem' }} />} 
+          sx={{ 
+            textTransform: 'none', 
+            color: '#2196F3', 
+            fontSize: '0.85rem',
+            '&:hover': { backgroundColor: 'rgba(33, 150, 243, 0.05)' }
           }}
         >
           Analyze project
+
         </Button>
-        
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
           Powered by AI Assistant
         </Typography>
       </Box>

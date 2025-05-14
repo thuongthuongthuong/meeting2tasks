@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./seed_data.js:/docker-entrypoint-initdb.d/seed_data.js:ro
+    environment:
+      - MONGO_INITDB_DATABASE=meeting2tasks
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    ports:
+      - "8000:8000"
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  task-service:
+    build:
+      context: ./task-service
+      dockerfile: Dockerfile
+    depends_on:
+      - mongodb
+      - ai-service
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/meeting2tasks
+      - AI_MODEL_URL=http://ai-service:8000/extract-tasks
+    ports:
+      - "8081:8081"
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  scheduling-service:
+    build:
+      context: ./scheduling-service
+      dockerfile: Dockerfile
+    depends_on:
+      - mongodb
+      - task-service
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/meeting2tasks
+      - TASK_SERVICE_URL=http://task-service:8081/api/tasks
+    ports:
+      - "8082:8082"
+    networks:
+      - app-network
+    restart: unless-stopped
+
+volumes:
+  mongodb_data:
+
+networks:
+  app-network:
+    driver: bridge
