@@ -120,7 +120,7 @@ const TaskDialog = ({ open, onClose, onAdd, onEdit, users, task }) => {
             }}
           />
 
-
+          {/* Description field */}
           <TextField
             label="Description"
             name="description"
@@ -135,7 +135,7 @@ const TaskDialog = ({ open, onClose, onAdd, onEdit, users, task }) => {
               sx: { borderRadius: 1.5 }
             }}
           />
-
+          
           <Divider>
             <Chip label="Task Properties" variant="outlined" />
           </Divider>
@@ -226,10 +226,8 @@ const TaskDialog = ({ open, onClose, onAdd, onEdit, users, task }) => {
       </DialogContent>
 
       <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50' }}>
-
         <Button 
           onClick={onClose} 
-
           variant="outlined"
           sx={{ borderRadius: 2, px: 3 }}
         >
@@ -239,7 +237,6 @@ const TaskDialog = ({ open, onClose, onAdd, onEdit, users, task }) => {
           variant="contained"
           onClick={handleSubmit}
           disabled={!taskData.title.trim()}
-
           sx={{ 
             borderRadius: 2, 
             px: 3,
@@ -247,7 +244,6 @@ const TaskDialog = ({ open, onClose, onAdd, onEdit, users, task }) => {
           }}
         >
           {task ? 'Save Changes' : 'Add Task'}
-
         </Button>
       </DialogActions>
     </Dialog>
