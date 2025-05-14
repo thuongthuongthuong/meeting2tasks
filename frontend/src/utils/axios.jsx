@@ -38,14 +38,14 @@ axiosInstance.interceptors.response.use(
         // window.location.href = "/auth/login";
         // }
       } else if (status === 404) {
-        window.location.href = "/404";
+        // window.location.href = "/404";
       } else if (status === 500) {
-        window.location.href = "/500";
+        // window.location.href = "/500";
       } else if (status === 503) {
         window.location.href = "/maintenance";
       }
     } else if (error.request) {
-       window.location.href = "/500";
+      //  window.location.href = "/500";
     } else {
       // Something happened in setting up the request that triggered an error
       console.log(`Error: ${error.message}`);

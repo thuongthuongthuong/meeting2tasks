@@ -15,24 +15,24 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import RemoveIcon from '@mui/icons-material/Remove';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
-const TaskCard = ({ task, index, onClick }) => {
+const TaskCard = ({ task, index, onClick, user }) => {
   const getTypeIcon = () => {
-    switch (task.type) {
-      case 'bug':
+    switch(task.type) {
+      case 'Bug':
         return <BugReportIcon fontSize="small" sx={{ color: '#DE350B' }} />;
-      case 'task':
+      case 'Task':
       default:
         return <CheckBoxOutlineBlankIcon fontSize="small" sx={{ color: '#2684FF' }} />;
     }
   };
 
   const getPriorityIcon = () => {
-    switch (task.priority) {
-      case 'high':
+    switch(task.priority) {
+      case 'High':
         return <ArrowUpwardIcon fontSize="small" sx={{ color: '#DE350B' }} />;
-      case 'low':
+      case 'Low':
         return <ArrowDownwardIcon fontSize="small" sx={{ color: '#2684FF' }} />;
-      case 'medium':
+      case 'Medium':
       default:
         return <RemoveIcon fontSize="small" sx={{ color: '#FF9800' }} />;
     }
@@ -104,7 +104,7 @@ const TaskCard = ({ task, index, onClick }) => {
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="caption" color="text.secondary">Story Points</Typography>
                 <Chip
-                  label={task.storyPoints}
+                  label={task.story_points}
                   size="small"
                   variant="outlined"
                   sx={{ height: 20, fontSize: '0.75rem', color: '#374151' }}
@@ -123,12 +123,12 @@ const TaskCard = ({ task, index, onClick }) => {
                 <Typography variant="caption" color="text.secondary">Assignee</Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <Avatar
-                    alt={task.assignee.name}
-                    src={task.assignee.avatar}
-                    sx={{ width: 20, height: 20 }}
-                  />
+                alt={user?.name}
+                src={user?.avatar}
+                sx={{ width: 20, height: 20 }}
+              />
                   <Typography variant="caption" sx={{ color: '#374151' }}>
-                    {task.assignee.name}
+                    {user?.name}
                   </Typography>
                 </Box>
               </Box>

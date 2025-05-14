@@ -37,65 +37,77 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import RemoveIcon from '@mui/icons-material/Remove';
 import { DragDropContext, Droppable } from 'react-beautiful-dnd';
 import StatusColumn from '../components/StatusColumn';
+import { mockSprints } from '../mockData/data';
 import TaskDialog from '../components/TaskDialog';
 import TaskListSidebar from '../components/TaskListSidebar';
 import { useParams } from 'react-router-dom';
-import { getUserByProjectID, createTask, updateTask, deleteTask, getSprintIdsByProjectId, getSprintWithTasks, completeSprint } from '../utils/api';
+import { getUserByPRojectID, updateTask, getSprintByProjectID, getSprintDetails, addTask, deleteTask } from '../utils/api';
+//------------------------------------------------------
 
-// Hàm chuyển đổi TaskDTO từ backend sang định dạng frontend
-const mapTaskDTOToTask = (taskDTO, users) => {
-  const id = taskDTO.id || taskDTO._id;
-  if (!id) {
-    console.error('TaskDTO missing id:', taskDTO);
-    return null;
-  }
-  return {
-    id: id.toString(),
-    title: taskDTO.title || taskDTO.name || 'Untitled Task',
-    description: taskDTO.description || '',
-    priority: taskDTO.priority || 'medium',
-    storyPoints: taskDTO.story_points || taskDTO.storyPoints || 1,
-    type: taskDTO.type || 'task',
-    status: taskDTO.status || 'To Do',
-    completed: taskDTO.completed || false,
-    assignedAt: taskDTO.assignedAt ? new Date(taskDTO.assignedAt) : null,
-    deadline: taskDTO.deadline ? new Date(taskDTO.deadline) : null,
-    assignee: taskDTO.userId || taskDTO.assignedUserId
-      ? users.find(user => user._id === taskDTO.userId || user._id === taskDTO.assignedUserId) || { name: 'Unassigned', _id: null }
-      : { name: 'Unassigned', _id: null },
-  };
-};
 
-function App() {
+export default function Karban() {
+  const { id } = useParams();
   const [anchorEl, setAnchorEl] = useState(null);
-  const [sprints, setSprints] = useState([]);
-  const [currentSprint, setCurrentSprint] = useState(null);
-  const [tasks, setTasks] = useState({ todo: [], inProgress: [], inReview: [], done: [] });
-  const [users, setUsers] = useState([]);
+  const [sprints, setSprints] = useState(mockSprints);
+  const [currentSprint, setCurrentSprint] = useState(sprints[0]);
+  const [currentSprintId, setCurrentSprintId] = useState(currentSprint?.sprint?.id);
   const [sprintDialogOpen, setSprintDialogOpen] = useState(false);
   const [taskDetailOpen, setTaskDetailOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const { id: projectId } = useParams();
+  const [users, setUsers] = useState([]);
+  const [todo, setTodo] = useState([]);
+  const [inProgress, setInProgress] = useState([]);
+  const [inReview, setInReview] = useState([]);
+  const [done, setDone] = useState([]);
+  const onAddTask= (task) => {
+    setTodo((prev) => [...prev, task]);
+    fetchSprint();
+  }
 
-  useEffect(() => {
-    console.log('Project ID:', projectId);
-  }, [projectId]);
-
-  useEffect(() => {
-    const fetchUser = async () => {
+  const fetchUser = async () => {
       try {
-        const response = await getUserByProjectID(projectId);
-        setUsers(response || []);
-        console.log('Fetched users:', response);
+        const response = await getUserByPRojectID(id);
+        setUsers(response.data);
       } catch (error) {
         console.error('Error fetching users:', error);
       }
-    };
-    if (projectId) fetchUser();
-  }, [projectId]);
+    }
+  const fetchSprint = async () => {
+    try {
+      const response = await getSprintDetails(currentSprintId);
+      setCurrentSprint(response.data);
+      setTodo(response.data.tasks.filter(task => task.status === 'To Do'));
+      setInProgress(response.data.tasks.filter(task => task.status === 'In Progress'));
+      setInReview(response.data.tasks.filter(task => task.status === 'In Review'));  
+      setDone(response.data.tasks.filter(task => task.status === 'Done'));
+    } catch (error) {
+      console.error('Error fetching sprints:', error);
+    }
+  }
+  const fetchListSprint = async () => {
+    try {
+      const response = await getSprintByProjectID(id);
+      setSprints(response.data);
+      setCurrentSprintId(response.data[response.data.length - 1]);
+    } catch (error) {
+      console.error('Error fetching sprints:', error);
+    }
+  }
+  useEffect(() => {
+    fetchUser();
+    fetchListSprint();
+    fetchSprint();
+  }, [id]);
+
+  useEffect(() => {
+    // Update tasks when current sprint changes
+    fetchSprint();
+  }, [currentSprintId]);
+  const handleMenuClick = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
 
   const fetchSprintsAndTasks = async () => {
     try {
@@ -129,17 +141,9 @@ function App() {
         return { ...sprintData.sprint, tasks: tasksByStatus, id: sprintData.sprint.id };
       }));
 
-      setSprints(sprintDetails);
-      setCurrentSprint(sprintDetails[0] || null);
-      setTasks(sprintDetails[0]?.tasks || { todo: [], inProgress: [], inReview: [], done: [] });
-    } catch (error) {
-      console.error('Error fetching sprints and tasks:', error);
-    }
+  const handleOpenSprintDialog = () => {
+    setSprintDialogOpen(true);
   };
-
-  useEffect(() => {
-    if (users.length > 0 && projectId) fetchSprintsAndTasks();
-  }, [users, projectId]);
 
   useEffect(() => {
     if (currentSprint) setTasks(currentSprint.tasks || { todo: [], inProgress: [], inReview: [], done: [] });
@@ -150,12 +154,11 @@ function App() {
   const handleOpenSprintDialog = () => setSprintDialogOpen(true);
   const handleCloseSprintDialog = () => setSprintDialogOpen(false);
   const handleChangeSprint = (sprint) => {
-    setCurrentSprint(sprint);
-    setTasks(sprint.tasks);
+    setCurrentSprintId(sprint);
     handleCloseSprintDialog();
   };
   const handleTaskClick = (task) => {
-    console.log('Selected task:', task);
+    task.assignee = users.find(user => user._id === task.userId);
     setSelectedTask(task);
     setTaskDetailOpen(true);
   };
@@ -164,237 +167,160 @@ function App() {
     setSelectedTask(null);
   };
 
-  const handleOpenEditTaskDialog = () => {
-    setIsEditMode(true);
-    setTaskDialogOpen(true);
-    setTaskDetailOpen(false);
-  };
-
-  const handleOpenAddTaskDialog = () => {
-    setSelectedTask(null);
-    setIsEditMode(false);
-    setTaskDialogOpen(true);
-  };
-
   const onDragEnd = async (result) => {
-    const { source, destination } = result;
-    if (!destination) return;
-    if (source.droppableId === destination.droppableId && source.index === destination.index) return;
+  const { source, destination } = result;
+  if (!destination) return;
 
-    const sourceColumn = source.droppableId;
-    const destColumn = destination.droppableId;
-    const taskToMove = tasks[sourceColumn][source.index];
+  if (
+    source.droppableId === destination.droppableId &&
+    source.index === destination.index
+  ) {
+    return;
+  }
 
-    if (!taskToMove.id) {
-      console.error('Task missing id during drag:', taskToMove);
-      return;
-    }
-
-    const newTasks = { ...tasks };
-    newTasks[sourceColumn] = [...newTasks[sourceColumn].filter((_, index) => index !== source.index)];
-
-    const statusMap = {
-      todo: 'To Do',
-      inProgress: 'In Progress',
-      inReview: 'In Review',
-      done: 'Done',
-    };
-    const newStatus = statusMap[destColumn];
-    const updatedTask = { ...taskToMove, status: newStatus, completed: destColumn === 'done' };
-
-    newTasks[destColumn] = [
-      ...newTasks[destColumn].slice(0, destination.index),
-      updatedTask,
-      ...newTasks[destColumn].slice(destination.index),
-    ];
-
-    setTasks(newTasks);
-    const updatedSprints = sprints.map(sprint =>
-      sprint.id === currentSprint.id ? { ...sprint, tasks: newTasks } : sprint
-    );
-    setSprints(updatedSprints);
-    setCurrentSprint({ ...currentSprint, tasks: newTasks });
-
-    try {
-      const taskPayload = {
-        status: newStatus,
-        completed: destColumn === 'done',
-        userId: taskToMove.assignee?._id || null,
-        title: taskToMove.title,
-        description: taskToMove.description,
-        priority: taskToMove.priority,
-        storyPoints: taskToMove.storyPoints,
-        type: taskToMove.type,
-        assignedAt: taskToMove.assignedAt ? taskToMove.assignedAt.toISOString().split('.')[0] : undefined,
-        deadline: taskToMove.deadline ? taskToMove.deadline.toISOString().split('.')[0] : undefined,
-      };
-      const response = await updateTask(taskToMove.id, taskPayload);
-      const updatedTaskFromResponse = mapTaskDTOToTask(response, users);
-
-      if (updatedTaskFromResponse) {
-        const finalTasks = { ...newTasks };
-        finalTasks[destColumn] = finalTasks[destColumn].map(task =>
-          task.id === taskToMove.id ? updatedTaskFromResponse : task
-        );
-        setTasks(finalTasks);
-        const finalSprints = sprints.map(sprint =>
-          sprint.id === currentSprint.id ? { ...sprint, tasks: finalTasks } : sprint
-        );
-        setSprints(finalSprints);
-        setCurrentSprint({ ...currentSprint, tasks: finalTasks });
-      } else {
-        throw new Error('Invalid task data from API');
-      }
-    } catch (error) {
-      console.error('Error updating task on drag:', error);
-      fetchSprintsAndTasks();
+  // Get source and destination lists
+  const getList = (id) => {
+    switch (id) {
+      case 'todo':
+        return [...todo];
+      case 'inProgress':
+        return [...inProgress];
+      case 'inReview':
+        return [...inReview];
+      case 'done':
+        return [...done];
+      default:
+        return [];
     }
   };
 
-  const handleAddTask = async (newTask) => {
-    try {
-      const taskDTO = {
-        title: newTask.title,
-        description: newTask.description || '',
-        priority: newTask.priority || 'medium',
-        storyPoints: parseInt(newTask.storyPoints) || 1,
-        type: newTask.type || 'task',
-        userId: newTask.assignee?._id || null,
-        assignedAt: newTask.assignedAt ? newTask.assignedAt.toISOString().split('.')[0] : undefined,
-        deadline: newTask.deadline ? newTask.deadline.toISOString().split('.')[0] : undefined,
-      };
-      const response = await createTask(currentSprint.id, taskDTO);
-      const addedTask = mapTaskDTOToTask(response, users);
-
-      if (addedTask) {
-        const newTasks = {
-          ...tasks,
-          todo: [...tasks.todo, addedTask],
-        };
-        setTasks(newTasks);
-        const updatedSprints = sprints.map(sprint =>
-          sprint.id === currentSprint.id ? { ...sprint, tasks: newTasks } : sprint
-        );
-        setSprints(updatedSprints);
-        setCurrentSprint({ ...currentSprint, tasks: newTasks });
-      } else {
-        throw new Error('Invalid task data from API');
-      }
-    } catch (error) {
-      console.error('Error adding task:', error);
-      fetchSprintsAndTasks();
+  const setList = (id, list) => {
+    switch (id) {
+      case 'todo':
+        setTodo(list);
+        break;
+      case 'inProgress':
+        setInProgress(list);
+        break;
+      case 'inReview':
+        setInReview(list);
+        break;
+      case 'done':
+        setDone(list);
+        break;
+      default:
+        break;
     }
-    setTaskDialogOpen(false);
+  };
+  const getStatus = (id) => {
+    switch (id) {
+      case 'todo':
+        return 'To Do';
+      case 'inProgress':
+        return 'In Progress';
+      case 'inReview':
+        return 'In Review';
+      case 'done':
+        return 'Done';
+      default:
+        return '';
+    }
   };
 
-  const handleUpdateTask = async (taskId, updatedTask) => {
-    try {
-      const taskPayload = {
-        userId: updatedTask.assignee?._id || null,
-        title: updatedTask.title,
-        description: updatedTask.description,
-        priority: updatedTask.priority,
-        storyPoints: updatedTask.storyPoints,
-        type: updatedTask.type,
-        status: updatedTask.status || tasks[Object.keys(tasks).find(key => tasks[key].some(t => t.id === taskId))]?.find(t => t.id === taskId)?.status || 'To Do',
-        assignedAt: updatedTask.assignedAt ? updatedTask.assignedAt.toISOString().split('.')[0] : undefined,
-        deadline: updatedTask.deadline ? updatedTask.deadline.toISOString().split('.')[0] : undefined,
-      };
+  const sourceList = getList(source.droppableId);
+  const destList = getList(destination.droppableId);
+  const taskToMove = sourceList[source.index];
+  // Remove from source
+  sourceList.splice(source.index, 1);
 
-      console.log('Sending taskPayload to API:', taskPayload);
+  // Handle 'completed' property
+  let updatedTask = { ...taskToMove };
+  if (source.droppableId !== 'done' && destination.droppableId === 'done') {
+    updatedTask.completed = true;
+  }
+  if (source.droppableId === 'done' && destination.droppableId !== 'done') {
+    delete updatedTask.completed;
+  }
 
-      const currentColumn = Object.keys(tasks).find(key => tasks[key].some(task => task.id === taskId));
-      const newTasks = { ...tasks };
-      if (currentColumn) {
-        newTasks[currentColumn] = newTasks[currentColumn].map(task =>
-          task.id === taskId ? { ...task, ...updatedTask } : task
-        );
-      }
+  // Insert into destination
+  destList.splice(destination.index, 0, updatedTask);
 
-      setTasks(newTasks);
-      const updatedSprints = sprints.map(sprint =>
-        sprint.id === currentSprint.id ? { ...sprint, tasks: newTasks } : sprint
-      );
-      setSprints(updatedSprints);
-      setCurrentSprint({ ...currentSprint, tasks: newTasks });
+  // Update lists
+  setList(source.droppableId, sourceList);
+  setList(destination.droppableId, destList);
+  
+  await updateTask(taskToMove.id, {
+    ...taskToMove,
+    status: getStatus(destination.droppableId),
+  });
+};
 
-      const response = await updateTask(taskId, taskPayload);
-      const updatedTaskFromResponse = mapTaskDTOToTask(response, users);
+const handleEditTask = async (task) => {
+  const updatedTask = {
+    ...task,
+    id: selectedTask.id,
+    title: task.title,
+    description: task.description,
+    type: task.type,
+    priority: task.priority,
+    story_points: task.story_points,
+    userId: task.userId,
+    status: task.status,
+  };
+   await updateTask(selectedTask.id, updatedTask);
+  switch (selectedTask.status) {
+    case 'To Do':
+      setTodo((prev) => prev.map(t => (t.id === selectedTask.id ? updatedTask : t)));
+      break;
+    case 'In Progress':
+      setInProgress((prev) => prev.map(t => (t.id === selectedTask.id ? updatedTask : t)));
+      break;
+    case 'In Review':
+      setInReview((prev) => prev.map(t => (t.id === selectedTask.id ? updatedTask : t)));
+      break;
+    case 'Done':
+      setDone((prev) => prev.map(t => (t.id === selectedTask.id ? updatedTask : t)));
+      break;
+    default:
+      break;
+  }
+  setSelectedTask(null);
+  setTaskDialogOpen(false);
+  setTaskDetailOpen(false);
+  }
 
-      if (updatedTaskFromResponse) {
-        console.log('Received updated task from API:', updatedTaskFromResponse);
-        const finalTasks = { ...newTasks };
-        const finalColumn = Object.keys(finalTasks).find(key => finalTasks[key].some(task => task.id === taskId));
-        if (finalColumn) {
-          finalTasks[finalColumn] = finalTasks[finalColumn].map(task =>
-            task.id === taskId ? updatedTaskFromResponse : task
-          );
+const handleAddTask = async (newTask) => {
+  // Generate a unique ID with format TASK-XXX
+  const generateTaskId = () => {
+    const randomId = Math.floor(1000 + Math.random() * 9000).toString().substring(0, 9);
+    return randomId;
+  };
+  
+  // Create the task object with default values plus user input
+  const taskToAdd = {
+    id: generateTaskId(),
+    type: newTask.type || 'Task',
+    title: newTask.title,
+    description: newTask.description || '',
+    priority: newTask.priority || 'Medium',
+    story_points: newTask.storyPoints || 1,
+    userId: newTask.userId || users[0]._id,
+    status: 'To Do',
+  };
+  setTodo((prev) => [...prev, taskToAdd]);
+  
+  setTaskDialogOpen(false);
+  try {
+          const response = await addTask(currentSprint?.sprint?.id, taskToAdd);
+          console.log(response)
+        } catch (error) {
+          console.error(error);
         }
+  fetchSprint();
+};
 
-        setTasks(finalTasks);
-        const finalSprints = sprints.map(sprint =>
-          sprint.id === currentSprint.id ? { ...sprint, tasks: finalTasks } : sprint
-        );
-        setSprints(finalSprints);
-        setCurrentSprint({ ...currentSprint, tasks: finalTasks });
-      } else {
-        throw new Error('Invalid task data from API');
-      }
-
-      setTaskDialogOpen(false);
-      setTaskDetailOpen(false);
-      setSelectedTask(null);
-    } catch (error) {
-      console.error('Error updating task:', error);
-      fetchSprintsAndTasks();
-    }
-  };
-
-  const handleDeleteTask = async (taskId) => {
-    if (!taskId) {
-      console.error('Cannot delete task: taskId is undefined');
-      alert('Không thể xóa task vì ID không hợp lệ.');
-      return;
-    }
-
-    try {
-      const response = await deleteTask(taskId);
-      if (response.success) {
-        const newTasks = { ...tasks };
-        Object.keys(newTasks).forEach(status => {
-          newTasks[status] = newTasks[status].filter(task => task.id !== taskId);
-        });
-        setTasks(newTasks);
-        const updatedSprints = sprints.map(sprint =>
-          sprint.id === currentSprint.id ? { ...sprint, tasks: newTasks } : sprint
-        );
-        setSprints(updatedSprints);
-        setCurrentSprint({ ...currentSprint, tasks: newTasks });
-        setTaskDetailOpen(false);
-        setSelectedTask(null);
-      } else {
-        console.error('Failed to delete task:', response.message);
-        alert('Xóa task thất bại: ' + response.message);
-      }
-    } catch (error) {
-      console.error('Error deleting task:', error);
-      alert('Đã xảy ra lỗi khi xóa task. Vui lòng thử lại.');
-    }
-  };
-
-  const getFilteredTasks = () => {
-    if (!searchQuery) return tasks;
-    const filteredTasks = {};
-    Object.keys(tasks).forEach(status => {
-      filteredTasks[status] = tasks[status].filter(task =>
-        task.title.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    });
-    return filteredTasks;
-  };
-
-  const filteredTasks = getFilteredTasks();
-
+  
+  // Calculate days remaining in sprint
   const calculateDaysRemaining = () => {
     if (currentSprint?.status === 'completed') return 0;
     const endDate = new Date(currentSprint?.endDate);
@@ -416,7 +342,26 @@ function App() {
       console.error('Error completing sprint:', error);
     }
   };
-
+  const handleDeleteTask = async () => {
+    await deleteTask(selectedTask.id);
+    switch (selectedTask.status) {
+      case 'To Do':
+        setTodo((prev) => prev.filter(task => task.id !== selectedTask.id));
+        break;
+      case 'In Progress':
+        setInProgress((prev) => prev.filter(task => task.id !== selectedTask.id));
+        break;
+      case 'In Review':
+        setInReview((prev) => prev.filter(task => task.id !== selectedTask.id));
+        break;
+      case 'Done':
+        setDone((prev) => prev.filter(task => task.id !== selectedTask.id));
+        break;
+      default:
+        break;
+    }
+    setSelectedTask(null);
+  }
   return (
     <>
       <CssBaseline />
@@ -432,7 +377,8 @@ function App() {
               onClick={handleOpenSprintDialog}
               startIcon={<HistoryIcon />}
             >
-              {currentSprint?.name || 'Select Sprint'}
+               {currentSprint?.sprint?.name}
+
             </Button>
             <Box sx={{ flexGrow: 1 }} />
             {currentSprint?.status !== 'completed' && (
@@ -504,7 +450,7 @@ function App() {
               variant="outlined"
               size="small"
               startIcon={<AddIcon />}
-              onClick={handleOpenAddTaskDialog}
+              onClick={() => {setSelectedTask(null); setTaskDialogOpen(true)}}
               sx={{ mr: 1 }}
             >
               Create task
@@ -524,37 +470,41 @@ function App() {
             <StatusColumn
               title="TO DO"
               id="todo"
-              count={filteredTasks.todo.length}
-              tasks={filteredTasks.todo}
+              users={users}
+              count={todo?.length} 
+              tasks={todo}
+
               onTaskClick={handleTaskClick}
             />
             <StatusColumn
               title="IN PROGRESS"
               id="inProgress"
-              count={filteredTasks.inProgress.length}
-              tasks={filteredTasks.inProgress}
+              users={users}
+              count={inProgress?.length} 
+              tasks={inProgress}
               onTaskClick={handleTaskClick}
             />
             <StatusColumn
               title="IN REVIEW"
               id="inReview"
-              count={filteredTasks.inReview.length}
-              tasks={filteredTasks.inReview}
+              users={users}
+              count={inReview?.length} 
+              tasks={inReview}
               onTaskClick={handleTaskClick}
             />
             <StatusColumn
               title="DONE"
               id="done"
-              count={filteredTasks.done.length}
-              tasks={filteredTasks.done}
+              users={users}
+              count={done?.length} 
+              tasks={done}
               onTaskClick={handleTaskClick}
             />
-            <TaskListSidebar
-              onAddTask={handleAddTask}
-              teamMembers={users}
-              projectId={projectId}
-              currentSprint={currentSprint}
-            />
+            <TaskListSidebar 
+        id={id}
+        sprintId={currentSprint?.sprint?.id}
+        onAddTask={onAddTask}
+      />
           </Box>
         </DragDropContext>
       </Box>
@@ -563,34 +513,15 @@ function App() {
       <Dialog open={sprintDialogOpen} onClose={handleCloseSprintDialog}>
         <DialogTitle>Select Sprint</DialogTitle>
         <DialogContent>
-          <List sx={{ minWidth: 250 }}>
+          <List sx={{ minWidth: 350 }}>
             {sprints.map((sprint) => (
-              <ListItem
-                button
-                key={sprint.id}
+              <ListItem 
+                button 
+                key={sprint} 
                 onClick={() => handleChangeSprint(sprint)}
-                selected={sprint.id === currentSprint?.id}
+                selected={sprint === currentSprint?.sprint?.id}
               >
-                <ListItemText
-                  primary={sprint.name}
-                  secondary={`${sprint.startDate} to ${sprint.endDate}`}
-                />
-                {sprint.status === 'completed' && (
-                  <Chip
-                    label="Completed"
-                    color="success"
-                    size="small"
-                    variant="outlined"
-                  />
-                )}
-                {sprint.status === 'active' && (
-                  <Chip
-                    label="Active"
-                    color="primary"
-                    size="small"
-                    variant="outlined"
-                  />
-                )}
+                {sprint}
               </ListItem>
             ))}
           </List>
@@ -602,23 +533,11 @@ function App() {
 
       {/* Task Detail Dialog */}
       {selectedTask && (
-        <Dialog
-          open={taskDetailOpen}
-          onClose={handleCloseTaskDetail}
-          maxWidth="md"
-          minWidth="500px"
-          PaperProps={{
-            sx: {
-              borderRadius: 2,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-              p: 1,
-            },
-          }}
-        >
-          <DialogTitle sx={{ p: 2, borderBottom: '1px solid #E0E0E0' }}>
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              {selectedTask.title}
-            </Typography>
+        <Dialog open={taskDetailOpen} onClose={handleCloseTaskDetail} maxWidth="md" minWidth="500px">
+          <DialogTitle>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              {selectedTask.id && selectedTask.id.length >= 9 ? selectedTask.id.slice(-9, -2) : selectedTask.id} - {selectedTask.title}
+            </Box>
           </DialogTitle>
           <DialogContent sx={{ p: 2, pt: 1 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 500, mb: 2, color: '#374151' }}>
@@ -678,22 +597,19 @@ function App() {
                     {selectedTask.priority.charAt(0).toUpperCase() + selectedTask.priority.slice(1)}
                   </Typography>
                 </Box>
-              </Box>
-
-              {/* Assignee */}
-              <Box>
-                <Typography variant="caption" color="text.secondary">
-                  Assignee
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
-                  <Avatar
-                    alt={selectedTask.assignee.name}
-                    src={selectedTask.assignee.avatar}
-                    sx={{ width: 24, height: 24, mr: 0.5 }}
-                  />
-                  <Typography variant="body2" sx={{ color: '#374151' }}>
-                    {selectedTask.assignee.name}
-                  </Typography>
+                <Box sx={{ width: '50%' }}>
+                  <Typography variant="body2" color="text.secondary">Story Points</Typography>
+                  <Typography variant="body1" sx={{ mb: 1 }}>{selectedTask.story_points}</Typography>
+                  
+                  <Typography variant="body2" color="text.secondary">Assignee</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Avatar 
+                      alt={selectedTask?.assignee?.name} 
+                      src={selectedTask?.assignee?.avatar} 
+                      sx={{ width: 24, height: 24, mr: 1 }} 
+                    />
+                    <Typography variant="body1">{selectedTask?.assignee?.name}</Typography>
+                  </Box>
                 </Box>
               </Box>
             </Box>
@@ -708,32 +624,10 @@ function App() {
               </Typography>
             </Box>
           </DialogContent>
-          <DialogActions sx={{ p: 2, justifyContent: 'space-between' }}>
-            <Button onClick={handleCloseTaskDetail} variant="outlined" sx={{ borderRadius: 1 }}>
-              Close
-            </Button>
-            <Box>
-              <Button
-                variant="contained"
-                color="primary"
-                startIcon={<EditIcon />}
-                onClick={handleOpenEditTaskDialog}
-                sx={{ mr: 1, borderRadius: 1 }}
-                disabled={!selectedTask.id}
-              >
-                Edit
-              </Button>
-              <Button
-                variant="contained"
-                color="error"
-                startIcon={<DeleteIcon />}
-                onClick={() => handleDeleteTask(selectedTask.id)}
-                sx={{ borderRadius: 1 }}
-                disabled={!selectedTask.id}
-              >
-                Delete
-              </Button>
-            </Box>
+          <DialogActions>
+            <Button onClick={handleCloseTaskDetail}>Close</Button>
+            <Button variant="contained" onClick={handleDeleteTask} color="error">Delete</Button>
+            <Button variant="contained" color="primary" onClick={() => setTaskDialogOpen(true)}>Edit</Button>
           </DialogActions>
         </Dialog>
       )}
@@ -746,11 +640,9 @@ function App() {
         }}
         onSubmit={isEditMode ? handleUpdateTask : handleAddTask}
         users={users}
-        initialTask={isEditMode ? selectedTask : null}
-        isEditMode={isEditMode}
+        task={selectedTask}
+        onEdit={handleEditTask}
       />
     </>
   );
 }
-
-export default App;

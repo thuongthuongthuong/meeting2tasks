@@ -38,17 +38,17 @@ export default function Router() {
 
 
 const Page500 = Loadable(
-  lazy(() => fakeDelay(1000).then(() => import("../pages/Page500")))
+  lazy(() =>  import("../pages/Page500"))
 );
 
 const Page404 = Loadable(
-  lazy(() => fakeDelay(1000).then(() => import("../pages/Page404")))
+  lazy(() => import("../pages/Page404"))
 );
 
 const Maintenance = Loadable(
-  lazy(() => fakeDelay(1000).then(() => import("../pages/Maintenance")))
+  lazy(() => import("../pages/Maintenance"))
 );
 
 const Karban = Loadable(
-  lazy(() => fakeDelay(1000).then(() => import("../pages/Karban")))
+  lazy(() => import("../pages/Karban"))
 );

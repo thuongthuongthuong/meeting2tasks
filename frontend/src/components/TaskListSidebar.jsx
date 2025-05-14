@@ -22,8 +22,11 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Menu,
-  MenuItem
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Grid
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
@@ -35,29 +38,44 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import InsertChartIcon from '@mui/icons-material/InsertChart';
 import PersonIcon from '@mui/icons-material/Person';
+
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import HistoryIcon from '@mui/icons-material/History';
 import StarIcon from '@mui/icons-material/Star';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
-import AssignmentIcon from '@mui/icons-material/Assignment';
 import EditIcon from '@mui/icons-material/Edit';
-import PercentIcon from '@mui/icons-material/Percent';
-import { generateTasksFromMeetingNotes } from '../utils/api';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import { processMeetingNotes, assignUserToTask, addTask } from '../utils/api';
 
-const AISidebar = ({ onAddTask, projectId = 1 }) => {
+const generateRandomId = (length = 20) => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
+
+const AISidebar = ({ onAddTask, teamMembers, projectName, id, sprintId }) => {
+
   const [prompt, setPrompt] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [promptHistory, setPromptHistory] = useState([]);
   const [activeTab, setActiveTab] = useState('suggestions');
-  const [showAnimation, setShowAnimation] = useState(false);
-  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-  const [selectedTask, setSelectedTask] = useState(null);
+  
+  // New states for the enhanced features
+  const [selectedUsers, setSelectedUsers] = useState({});
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editTask, setEditTask] = useState(null);
+  const [currentTask, setCurrentTask] = useState(null);
+  const [editedTask, setEditedTask] = useState(null);
+
 
   const quickSuggestions = [
-    "Assign tasks for this week",
+    "Distribute tasks for this week",
     "Optimize the schedule",
     "Suggest task priorities"
   ];
@@ -66,33 +84,22 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
     if (!prompt.trim()) return;
 
     setIsLoading(true);
-    setShowAnimation(true);
-
+    const response = await processMeetingNotes(prompt);
+    const user = await assignUserToTask(+id, response);
+    console.log(user);
+    
+    // Initialize selected users object
+    const initialSelectedUsers = {};
+    user.forEach(task => {
+      initialSelectedUsers[task.title] = task.assignableUsers.length > 0 ? null : task.assignableUsers[0]?._id;
+    });
+    setSelectedUsers(initialSelectedUsers);
+    
+    setSuggestions(user);
+    // Lưu prompt vào lịch sử
     setPromptHistory([{ text: prompt, timestamp: new Date() }, ...promptHistory]);
-
-    try {
-      const generatedTasks = await generateTasksFromMeetingNotes(prompt);
-      const mappedTasks = generatedTasks.map((task, index) => ({
-        id: `AI-${Date.now()}-${index}`,
-        title: task.title,
-        description: task.description || '',
-        role: task.role || 'Unassigned',
-        dueDate: "3 days",
-        priority: "medium",
-        type: "task",
-        assignableUsers: task.assignableUsers || [],
-        assignee: task.assignableUsers?.length > 0 && !task.assignee 
-          ? task.assignableUsers.reduce((prev, curr) => 
-              (prev.match_percentage || 0) > (curr.match_percentage || 0) ? prev : curr, task.assignableUsers[0])
-          : task.assignee
-      }));
-      setSuggestions(mappedTasks);
-    } catch (error) {
-      console.error('Error generating tasks:', error);
-      setSuggestions([]);
-    } finally {
-      setIsLoading(false);
-    }
+    
+    setIsLoading(false);
 
     setPrompt('');
   };
@@ -229,42 +236,114 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
   const handleKeyPress = (e) => e.key === 'Enter' && handleSubmitPrompt();
   const handleQuickSuggestion = (suggestion) => {
     setPrompt(suggestion);
-    handleSubmitPrompt();
-  };
-  const handleVoiceInput = () => {
-    setIsListening(true);
-    setTimeout(() => {
-      setPrompt("Suggest tasks for the design team");
-      setIsListening(false);
-      handleSubmitPrompt();
-    }, 2000);
-  };
-  const handleAcceptTask = (task) => {
-    onAddTask(task);
-    setSuggestions(suggestions.filter(s => s.id !== task.id));
   };
 
-  useEffect(() => {
-    if (showAnimation) {
-      const timer = setTimeout(() => setShowAnimation(false), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [showAnimation]);
+  // Xử lý khi chọn user cho task
+  const handleSelectUser = (taskTitle, userId) => {
+    setSelectedUsers(prev => ({
+      ...prev,
+      [taskTitle]: prev[taskTitle] === userId ? null : userId
+    }));
+  };
 
-  const getTaskIcon = (type) => {
-    switch(type) {
-      case 'design': return <LightbulbIcon sx={{ color: '#FF9800' }} />;
-      case 'content': return <InsertChartIcon sx={{ color: '#2196F3' }} />;
-      default: return <SmartToyIcon sx={{ color: '#9C27B0' }} />;
+  // Xử lý khi chấp nhận task
+  const handleAcceptTask = async (task) => {
+    const selectedUserId = selectedUsers[task.title];
+    if (!selectedUserId && task.assignableUsers.length > 1) return;
+    
+    const taskToAdd = {
+      ...task,
+      id: generateRandomId(),
+      userId: selectedUserId || task.assignableUsers[0]?._id,
+      priority: task.priority || 'Low',
+      story_points: task.story_points || 1,
+      type: task.type || 'Unknown',
+      status: task.status || 'To Do',
+    };
+    
+    await addTask(sprintId, taskToAdd);
+    onAddTask(taskToAdd);
+    // Xóa khỏi danh sách gợi ý
+    setSuggestions(suggestions.filter(s => s.title !== task.title));
+  };
+
+  const handleAcceptAllTasks = async () => {
+    // Only accept tasks that have a selected user or only one assignable user
+    const tasksToAccept = suggestions.filter(task => 
+      selectedUsers[task.title] || task.assignableUsers.length === 1
+    );
+    
+    for (const task of tasksToAccept) {
+      const taskToAdd = {
+        ...task,
+        id: generateRandomId(),
+        userId: selectedUsers[task.title] || task.assignableUsers[0]?._id,
+        priority: task.priority || 'Low',
+        story_points: task.story_points || 1,
+        type: task.type || 'Unknown',
+        status: task.status || 'To Do',
+      };
+      try {
+        await addTask(sprintId, taskToAdd);
+        onAddTask(taskToAdd);
+      } catch (error) {
+        console.error(`Failed to add task "${task.title}":`, error);
+      }
     }
+
+    // Remove accepted tasks from suggestions
+    setSuggestions(suggestions.filter(task => 
+      !(selectedUsers[task.title] || task.assignableUsers.length === 1)
+    ));
+  };
+
+  // View task details
+  const handleViewTaskDetails = (task) => {
+    setCurrentTask(task);
+    setDetailDialogOpen(true);
+  };
+
+  // Edit task before adding
+  const handleEditTask = (task) => {
+    setCurrentTask(task);
+    setEditedTask({
+      ...task,
+      priority: task.priority || 'Low',
+      story_points: task.story_points || 1,
+      type: task.type || 'Unknown',
+      status: 'To Do',
+      userId: selectedUsers[task.title] || task.assignableUsers[0]?._id,
+    });
+    setEditDialogOpen(true);
+  };
+
+  // Save edited task
+  const handleSaveEditedTask = async () => {
+    if (!editedTask) return;
+    
+    const taskToAdd = {
+      ...editedTask,
+      id: generateRandomId(),
+    };
+    
+    await addTask(sprintId, taskToAdd);
+    onAddTask(taskToAdd);
+    
+    // Remove from suggestions
+    setSuggestions(suggestions.filter(s => s.title !== currentTask.title));
+    setEditDialogOpen(false);
   };
 
   const getPriorityColor = (priority) => {
-    switch(priority) {
-      case 'high': return '#F44336';
-      case 'medium': return '#FF9800';
-      case 'low': return '#4CAF50';
-      default: return '#9E9E9E';
+    switch(priority?.toLowerCase()) {
+      case 'high':
+        return '#F44336';
+      case 'medium':
+        return '#FF9800';
+      case 'low':
+        return '#4CAF50';
+      default:
+        return '#9E9E9E';
     }
   };
 
@@ -284,20 +363,33 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
     >
       {/* Background Animation */}
       <Box 
-        sx={{ 
-          position: 'absolute', 
-          top: 0, 
-          left: 0, 
-          right: 0, 
-          bottom: 0, 
-          zIndex: 0, 
-          opacity: showAnimation ? 0.15 : 0, 
-          transition: 'opacity 1.5s ease', 
-          background: 'radial-gradient(circle, rgba(138,43,226,0.15) 0%, rgba(0,0,0,0) 70%)', 
-          pointerEvents: 'none', 
-          animation: showAnimation ? 'pulse 2s infinite' : 'none', 
-          '@keyframes pulse': { '0%': { transform: 'scale(0.97)', opacity: 0.15 }, '50%': { transform: 'scale(1)', opacity: 0.25 }, '100%': { transform: 'scale(0.97)', opacity: 0.15 } } 
-        }} 
+        sx={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 0,
+          opacity: isLoading ? 0.1 : 0,
+          transition: 'opacity 2s ease',
+          background: 'radial-gradient(circle, rgba(138,43,226,0.1) 0%, rgba(0,0,0,0) 70%)',
+          pointerEvents: 'none',
+          animation: isLoading ? 'pulse 2s infinite' : 'none',
+          '@keyframes pulse': {
+            '0%': {
+              transform: 'scale(0.95)',
+              opacity: 0.2,
+            },
+            '50%': {
+              transform: 'scale(1)',
+              opacity: 0.3,
+            },
+            '100%': {
+              transform: 'scale(0.95)',
+              opacity: 0.2,
+            },
+          },
+        }}
       />
 
       {/* Header */}
@@ -316,16 +408,17 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
             AI Assistant
           </Typography>
         </Box>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: '0.85rem' }}>
-          Generate and manage tasks effortlessly with AI.
+        
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Let me suggest a few tasks for the team!
         </Typography>
 
         {/* Prompt Input */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
           <TextField
             fullWidth
-            size="small"
-            placeholder="Enter your request, e.g., 'Suggest tasks for Project X'"
+            size="medium"
+            placeholder="Enter a request, e.g.: 'Suggest tasks for project X, assign them to team A'"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyPress={handleKeyPress}
@@ -346,12 +439,33 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
               ),
               endAdornment: (
                 <InputAdornment position="end">
-                  <IconButton size="small" onClick={handleVoiceInput} sx={{ color: isListening ? '#F44336' : 'rgba(0,0,0,0.54)', animation: isListening ? 'pulse 1s infinite' : 'none' }}>
-                    <MicIcon sx={{ fontSize: '1.2rem' }} />
+                  <IconButton 
+                    size="small" 
+                    sx={{ 
+                      mr: 0.5,
+                      color: 'rgba(0,0,0,0.54)',
+                    }}
+                  >
+                    <InsertDriveFileIcon />
                   </IconButton>
-                  <IconButton size="small" onClick={handleVoiceInput} sx={{ color: 'rgba(0,0,0,0.54)' }}>
-                    <InsertDriveFileIcon sx={{ fontSize: '1.2rem' }} />
-                  </IconButton>
+
+                  <Button 
+                    variant="contained" 
+                    size="small" 
+                    onClick={handleSubmitPrompt}
+                    disabled={!prompt.trim() || isLoading}
+                    sx={{
+                      borderRadius: '8px',
+                      background: ' #00C9FF', // cool green-blue gradient
+                      textTransform: 'none',
+                      boxShadow: '0 2px 5px rgba(0, 201, 255, 0.2)', // light blue shadow
+                      '&:hover': {
+                        boxShadow: '0 4px 10px rgba(0, 201, 255, 0.3)', // stronger hover shadow
+                      }
+                    }}
+                  >
+                    {isLoading ? <CircularProgress size={24} /> : 'Send'}
+                  </Button>
                 </InputAdornment>
               )
             }}
@@ -374,247 +488,283 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
             Send
           </Button>
         </Box>
-
-        {/* Quick Suggestions */}
+        
+        {/* Quick suggestions */}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
           {quickSuggestions.map((suggestion, index) => (
-            <Chip 
-              key={index} 
-              label={suggestion} 
-              onClick={() => handleQuickSuggestion(suggestion)} 
-              size="small" 
+            <Chip
+              key={index}
+              label={suggestion}
+              onClick={() => handleQuickSuggestion(suggestion)}
+              size="small"
               sx={{ 
-                borderRadius: '16px', 
-                background: 'rgba(33, 150, 243, 0.1)', 
-                color: '#2196F3', 
-                fontSize: '0.8rem', 
-                px: 1, 
-                '&:hover': { background: 'rgba(33, 150, 243, 0.2)' } 
-              }} 
+                borderRadius: '16px',
+                background: 'rgba(33, 150, 243, 0.08)', // light blue background
+                color: '#2196F3', // blue text
+                '&:hover': {
+                  background: 'rgba(33, 150, 243, 0.15)', // slightly darker on hover
+                }
+              }}
             />
           ))}
         </Box>
       </Box>
-
+      
       {/* Tabs */}
-      <Box sx={{ display: 'flex', borderBottom: '1px solid rgba(0,0,0,0.08)', background: '#FFFFFF', position: 'relative', zIndex: 1 }}>
+      <Box sx={{ 
+        display: 'flex', 
+        borderBottom: '1px solid rgba(0,0,0,0.08)',
+        background: 'rgba(250,250,252,0.8)',
+        position: 'relative',
+        zIndex: 1
+      }}>
         <Button 
           sx={{ 
-            flex: 1, 
-            py: 1.5, 
-            borderRadius: 0, 
-            borderBottom: activeTab === 'suggestions' ? '2px solid #2196F3' : 'none', 
-            color: activeTab === 'suggestions' ? '#2196F3' : 'text.secondary', 
-            fontWeight: activeTab === 'suggestions' ? 600 : 400,
-            fontSize: '0.9rem',
-            textTransform: 'none'
-          }} 
+            flexGrow: 1, 
+            py: 1, 
+            borderRadius: 0,
+            borderBottom: activeTab === 'suggestions' ? '2px solid #2196F3' : 'none',
+            color: activeTab === 'suggestions' ? '#2196F3' : 'text.secondary',
+            fontWeight: activeTab === 'suggestions' ? 500 : 400,
+          }}
           onClick={() => setActiveTab('suggestions')}
         >
-          Suggestions
+          Suggest
         </Button>
         <Button 
           sx={{ 
-            flex: 1, 
-            py: 1.5, 
-            borderRadius: 0, 
-            borderBottom: activeTab === 'history' ? '2px solid #2196F3' : 'none', 
-            color: activeTab === 'history' ? '#2196F3' : 'text.secondary', 
-            fontWeight: activeTab === 'history' ? 600 : 400,
-            fontSize: '0.9rem',
-            textTransform: 'none'
-          }} 
+            flexGrow: 1, 
+            py: 1, 
+            borderRadius: 0,
+            borderBottom: activeTab === 'history' ? '2px solid #2196F3' : 'none',
+            color: activeTab === 'history' ? '#2196F3' : 'text.secondary',
+            fontWeight: activeTab === 'history' ? 500 : 400,
+          }}
           onClick={() => setActiveTab('history')}
         >
           History
         </Button>
       </Box>
 
-      {/* Main Content */}
-      <Box sx={{ flexGrow: 1, overflowY: 'auto', position: 'relative', zIndex: 1, backgroundColor: '#FAFAFA' }}>
+      {/* Main content */}
+      <Box sx={{ flexGrow: 1, overflow: 'auto', position: 'relative', zIndex: 1 }}>
         {activeTab === 'suggestions' && (
           <>
             {isLoading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', flexDirection: 'column', gap: 2 }}>
-                <CircularProgress size={36} sx={{ color: '#9C27B0' }} />
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.9rem' }}>
-                  Generating suggestions...
+              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', flexDirection: 'column' }}>
+                <CircularProgress size={40} sx={{ mb: 2, color: '#9C27B0' }} />
+                <Typography variant="body2" color="text.secondary">
+                  Analyzing and generating suggestions...
+
                 </Typography>
               </Box>
             ) : suggestions.length > 0 ? (
               <>
-                <Box sx={{ p: 2 }}>
-                  <Alert 
-                    severity="info" 
-                    variant="outlined" 
-                    sx={{ 
-                      fontSize: '0.85rem', 
-                      backgroundColor: 'rgba(33, 150, 243, 0.05)', 
-                      borderColor: 'rgba(33, 150, 243, 0.2)', 
-                      color: '#1565C0'
-                    }}
-                  >
-                    These are AI-generated suggestions. Please review before proceeding.
+                <Box sx={{ mx: 2, mt: 2 }}>
+                  <Alert severity="warning" variant="outlined" sx={{ fontSize: '0.875rem' }}>
+                    The suggestions below are AI-generated. Please review them carefully before use.
                   </Alert>
                 </Box>
-                <Box sx={{ px: 2, mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1.5, mb: 0.5, mx: 2 }}>
                   <Button 
-                    variant="contained" 
-                    onClick={handleAssignAll} 
-                    disabled={isLoading} 
+                    variant="outlined" 
+                    size="small"
+                    startIcon={<AddCircleOutlineIcon />}
+                    onClick={handleAcceptAllTasks} 
                     sx={{ 
-                      borderRadius: '8px', 
-                      background: '#2196F3', 
-                      textTransform: 'none', 
-                      px: 3, 
-                      py: 0.8, 
-                      '&:hover': { background: '#1E88E5' }
+                      borderRadius: '6px',
+                      textTransform: 'none',
+                      fontSize: '0.8rem',
+                      color: '#4CAF50',
+                      borderColor: '#4CAF50',
+                      '&:hover': { 
+                        backgroundColor: 'rgba(76, 175, 80, 0.08)',
+                        borderColor: '#4CAF50' 
+                      }
                     }}
                   >
-                    Assign All
+                    Add selected tasks
                   </Button>
                 </Box>
-                <List disablePadding sx={{ px: 1, pb: 2 }}>
-                  {suggestions.map((task, index) => (
-                    <Fade in={true} key={task.id} style={{ transitionDelay: `${index * 100}ms` }}>
-                      <Paper 
-                        elevation={1} 
-                        sx={{ 
-                          m: 1, 
-                          borderRadius: '10px', 
-                          position: 'relative', 
-                          overflow: 'hidden', 
-                          background: '#FFFFFF',
-                          transition: 'all 0.3s ease',
-                          '&:hover': { transform: 'translateY(-2px)', boxShadow: '0 4px 8px rgba(0,0,0,0.08)' }
-                        }}
-                      >
-                        <Box sx={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', backgroundColor: getPriorityColor(task.priority) }} />
-                        <ListItem sx={{ px: 2, py: 1.5, alignItems: 'flex-start', gap: 1 }}>
-                          <ListItemIcon sx={{ minWidth: 36, mt: 0.5 }}>
-                            {getTaskIcon(task.type)}
-                          </ListItemIcon>
-                          <ListItemText
-                            primary={
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#1A1A1A' }}>
-                                  {task.title}
-                                </Typography>
-                                <Chip 
-                                  size="small" 
-                                  label={task.role} 
-                                  sx={{ 
-                                    background: 'rgba(156, 39, 176, 0.1)', 
-                                    color: '#9C27B0', 
-                                    fontSize: '0.75rem', 
-                                    height: 22, 
-                                    borderRadius: '6px'
-                                  }}
-                                />
-                              </Box>
+                <List disablePadding>
+                  {suggestions.map((task, index) => {
+                    const selectedUserId = selectedUsers[task.title];
+                    const isUserSelected = !!selectedUserId || task.assignableUsers.length === 1;
+                    
+                    return (
+                      <Fade in={true} key={index} style={{ transitionDelay: `${index * 100}ms` }}>
+                        <Paper
+                          elevation={1}
+                          sx={{
+                            m: 1.5,
+                            borderRadius: '8px',
+                            position: 'relative',
+                            overflow: 'hidden',
+                            transition: 'all 0.2s ease',
+                            '&:hover': {
+                              transform: 'translateY(-2px)',
+                              boxShadow: '0 4px 10px rgba(0,0,0,0.1)',
                             }
-                            secondary={
-                              <Box sx={{ mt: 0.5 }}>
-                                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.85rem', mb: 1 }}>
-                                  {task.description}
-                                </Typography>
-                                {task.assignableUsers && task.assignableUsers.length > 0 && (
-                                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                                    {task.assignableUsers.map((user, idx) => (
-                                      <Chip
-                                        key={idx}
-                                        icon={<PersonIcon sx={{ fontSize: '0.9rem !important', ml: 0.5 }} />}
-                                        label={`${user.name} (${user.match_percentage || 0}%)`}
-                                        size="small"
-                                        variant="outlined"
-                                        sx={{
-                                          fontSize: '0.75rem',
-                                          height: 24,
-                                          borderRadius: '6px',
-                                          borderColor: task.assignee?._id === user._id ? '#4CAF50' : 'rgba(0,0,0,0.1)',
-                                          backgroundColor: task.assignee?._id === user._id ? 'rgba(76, 175, 80, 0.05)' : 'transparent',
-                                          color: task.assignee?._id === user._id ? '#4CAF50' : 'inherit',
-                                          '& .MuiChip-icon': {
-                                            color: task.assignee?._id === user._id ? '#4CAF50' : 'inherit'
-                                          }
-                                        }}
-                                      />
-                                    ))}
+                          }}
+                        >
+                          <Box sx={{ 
+                            position: 'absolute', 
+                            top: 0, 
+                            left: 0, 
+                            width: '4px', 
+                            height: '100%',
+                            backgroundColor: getPriorityColor(task?.priority)
+                          }} />
+                          
+                          <ListItem
+                            sx={{ pr: 1, pl: 2, py: 1.5 }}
+                            secondaryAction={
+                              isUserSelected && (
+                                <Box sx={{ display: 'flex' }}>
+                                  <Tooltip title="Edit Before Adding">
+                                    <IconButton
+                                      edge="end"
+                                      size="small"
+                                      onClick={() => handleEditTask(task)}
+                                      sx={{
+                                        color: '#FF9800',
+                                        '&:hover': { backgroundColor: 'rgba(255,152,0,0.1)' }
+                                      }}
+                                    >
+                                      <EditIcon />
+                                    </IconButton>
+                                  </Tooltip>
+                                  <Tooltip title="Accept">
+                                    <IconButton 
+                                      edge="end" 
+                                      size="small"
+                                      onClick={() => handleAcceptTask(task)}
+                                      sx={{ 
+                                        color: '#4CAF50',
+                                        '&:hover': { backgroundColor: 'rgba(76,175,80,0.1)' }
+                                      }}
+                                    >
+                                      <CheckCircleIcon />
+                                    </IconButton>
+                                  </Tooltip>
+                                  <Tooltip title="Reject">
+                                    <IconButton 
+                                      edge="end" 
+                                      size="small"
+                                      onClick={() => setSuggestions(suggestions.filter(s => s.title !== task?.title))}
+                                      sx={{ 
+                                        color: '#F44336',
+                                        '&:hover': { backgroundColor: 'rgba(244,67,54,0.1)' }
+                                      }}
+                                    >
+                                      <CancelIcon />
+                                    </IconButton>
+                                  </Tooltip>
+                                </Box>
+                              )
+                            }
+                          >
+                            <ListItemText
+                              primary={
+                                <>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                                    <Typography variant="subtitle2" color="text.secondary" sx={{ mr: 1 }}>
+                                      {task?.title}
+                                    </Typography>
                                   </Box>
-                                )}
-                              </Box>
-                            }
-                          />
-                          <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexShrink: 0, mt: 0.5 }}>
-                            <Tooltip title="Edit">
-                              <IconButton size="small" onClick={() => handleEditTask(task)} sx={{ color: '#FF9800' }}>
-                                <EditIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Accept">
-                              <IconButton size="small" onClick={() => handleAcceptTask(task)} sx={{ color: '#4CAF50' }}>
-                                <CheckCircleIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Reject">
-                              <IconButton size="small" onClick={() => setSuggestions(suggestions.filter(s => s.id !== task.id))} sx={{ color: '#F44336' }}>
-                                <CancelIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Assign">
-                              <IconButton size="small" onClick={() => handleAssignTask(task)} sx={{ color: '#2196F3' }}>
-                                <AssignmentIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          </Box>
-                        </ListItem>
-                      </Paper>
-                    </Fade>
-                  ))}
+                                  <Typography variant="caption">{task?.description}</Typography>
+                                </>
+                              }
+                              secondary={
+                                <Box sx={{ display: 'flex', alignItems: 'center', mt: 1, flexWrap: 'wrap', gap: 1 }}>
+                                  {task.assignableUsers?.map((user) => (
+                                    <Chip
+                                      key={user._id}
+                                      icon={<PersonIcon sx={{ fontSize: '0.8rem !important' }} />}
+                                      avatar={<Avatar src={user.avatar} sx={{ width: 16, height: 16 }} />}
+                                      label={user.name + ' - ' + user.match_percentage + '%'}
+                                      size="small"
+                                      variant="outlined"
+                                      onClick={() => handleSelectUser(task.title, user._id)}
+                                      sx={{
+                                        height: 20,
+                                        fontSize: '0.65rem',
+                                        borderColor: selectedUserId === user._id ? '#2196F3' : 'rgba(0,0,0,0.1)',
+                                        backgroundColor: selectedUserId === user._id ? 'rgba(33,150,243,0.1)' : 'transparent',
+                                        color: selectedUserId === user._id ? '#2196F3' : 'inherit',
+                                        mr: 0.5,
+                                        cursor: 'pointer',
+                                        '&:hover': {
+                                          backgroundColor: 'rgba(33,150,243,0.05)',
+                                          borderColor: 'rgba(33,150,243,0.3)'
+                                        }
+                                      }}
+                                    />
+                                  ))}
+                                  {!isUserSelected && (
+                                    <Typography variant="caption" color="error" sx={{ display: 'block'}}>
+                                      Please select a user to enable task actions
+                                    </Typography>
+                                  )}
+                                </Box>
+                              }
+                              secondaryTypographyProps={{ component: 'div' }}
+                            />
+                          </ListItem>
+                        </Paper>
+                      </Fade>
+                    );
+                  })}
                 </List>
               </>
             ) : (
-              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', p: 3, textAlign: 'center' }}>
-                <StarIcon sx={{ fontSize: 40, color: 'rgba(156,39,176,0.2)', mb: 2 }} />
-                <Typography variant="body1" color="text.secondary" sx={{ fontSize: '1rem', mb: 1 }}>
-                  No suggestions yet
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '70%', p: 3 }}>
+                <StarIcon sx={{ fontSize: 48, color: 'rgba(156,39,176,0.2)', mb: 2 }} />
+                <Typography variant="body1" color="text.secondary" sx={{ textAlign: 'center' }}>
+                  Enter a request to let AI suggest tasks for you
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.85rem' }}>
-                  Enter a request above to get AI-generated task suggestions.
+                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mt: 1 }}>
+                  AI will analyze your request and suggest suitable tasks
                 </Typography>
               </Box>
             )}
           </>
         )}
         {activeTab === 'history' && (
-          <List disablePadding sx={{ p: 1 }}>
-            {promptHistory.length > 0 ? promptHistory.map((item, index) => (
-              <React.Fragment key={index}>
-                <ListItem 
-                  button 
-                  onClick={() => { setPrompt(item.text); setActiveTab('suggestions'); }} 
-                  sx={{ 
-                    borderRadius: '8px', 
-                    py: 1, 
-                    px: 2, 
-                    '&:hover': { backgroundColor: 'rgba(0,0,0,0.03)' }
-                  }}
-                >
-                  <ListItemIcon sx={{ minWidth: 32 }}>
-                    <HistoryIcon fontSize="small" sx={{ color: '#78909C' }} />
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary={item.text} 
-                    secondary={new Date(item.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })} 
-                    primaryTypographyProps={{ fontSize: '0.9rem', color: '#1A1A1A' }} 
-                    secondaryTypographyProps={{ fontSize: '0.75rem', color: 'text.secondary' }}
-                  />
-                </ListItem>
-                {index < promptHistory.length - 1 && <Divider component="li" sx={{ my: 0.5 }} />}
-              </React.Fragment>
-            )) : (
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', p: 3 }}>
-                <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.9rem' }}>
+          <List disablePadding>
+            {promptHistory.length > 0 ? (
+              promptHistory.map((item, index) => (
+                <React.Fragment key={index}>
+                  <ListItem 
+                    button
+                    onClick={() => {
+                      setPrompt(item.text);
+                      setActiveTab('suggestions');
+                    }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 36 }}>
+                      <HistoryIcon fontSize="small" color="action" />
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary={item.text}
+                      secondary={new Date(item.timestamp).toLocaleTimeString('vi-VN', { 
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        day: '2-digit',
+                        month: '2-digit'
+                      })}
+                      primaryTypographyProps={{ 
+                        noWrap: true,
+                        variant: 'body2'
+                      }}
+                    />
+                  </ListItem>
+                  <Divider component="li" />
+                </React.Fragment>
+              ))
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50%', p: 3 }}>
+                <Typography variant="body2" color="text.secondary">
                   No history available
                 </Typography>
               </Box>
@@ -635,219 +785,241 @@ const AISidebar = ({ onAddTask, projectId = 1 }) => {
             '&:hover': { backgroundColor: 'rgba(33, 150, 243, 0.05)' }
           }}
         >
-          Analyze Project
+          Analyze project
+
         </Button>
         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
           Powered by AI Assistant
         </Typography>
       </Box>
 
-      {/* Assign Task Dialog */}
-      <Dialog open={assignDialogOpen} onClose={handleCloseAssignDialog} maxWidth="sm" fullWidth sx={{ '& .MuiDialog-paper': { borderRadius: '12px' } }}>
-        <DialogTitle sx={{ fontSize: '1.1rem', fontWeight: 600, borderBottom: '1px solid rgba(0,0,0,0.08)', py: 2 }}>
-          Assign Task: {selectedTask?.title}
+      {/* Task Detail Dialog */}
+      <Dialog
+        open={detailDialogOpen}
+        onClose={() => setDetailDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Task Details
         </DialogTitle>
-        <DialogContent sx={{ py: 2 }}>
-          {selectedTask?.assignee && (
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="subtitle2" color="text.secondary" sx={{ fontSize: '0.85rem', mb: 1 }}>
-                Current Assignee:
+        <DialogContent dividers>
+          {currentTask && (
+            <Box>
+              <Typography variant="h6" gutterBottom>
+                {currentTask.title}
               </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Avatar src={selectedTask.assignee.avatar} sx={{ width: 28, height: 28 }} />
-                <Typography variant="body2" sx={{ fontSize: '0.9rem', fontWeight: 500 }}>
-                  {selectedTask.assignee.name}
-                </Typography>
-                <Chip
-                  icon={<PercentIcon sx={{ fontSize: '0.9rem !important', ml: 0.5 }} />}
-                  label={`${selectedTask.assignee.match_percentage || 0}%`}
-                  size="small"
-                  variant="outlined"
-                  sx={{
-                    fontSize: '0.75rem',
-                    height: 24,
-                    borderRadius: '6px',
-                    borderColor: '#4CAF50',
-                    backgroundColor: 'rgba(76, 175, 80, 0.05)',
-                    color: '#4CAF50',
-                    '& .MuiChip-icon': { color: '#4CAF50' }
-                  }}
-                />
-              </Box>
-            </Box>
-          )}
-          <Typography variant="subtitle2" color="text.secondary" sx={{ fontSize: '0.85rem', mb: 1.5 }}>
-            Select an Assignee:
-          </Typography>
-          {isLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
-              <CircularProgress size={28} />
-            </Box>
-          ) : selectedTask?.assignableUsers?.length > 0 ? (
-            <List dense sx={{ py: 0 }}>
-              {selectedTask.assignableUsers.map((user) => (
-                <ListItem
-                  key={user._id}
-                  button
-                  onClick={() => handleSelectAssignee(user)}
-                  sx={{
-                    border: selectedTask.assignee?._id === user._id ? '1px solid #4CAF50' : '1px solid rgba(0,0,0,0.1)',
-                    borderRadius: '8px',
-                    mb: 1,
-                    py: 1,
-                    px: 2,
-                    backgroundColor: selectedTask.assignee?._id === user._id ? 'rgba(76, 175, 80, 0.05)' : 'transparent',
-                    '&:hover': { backgroundColor: 'rgba(0,0,0,0.03)' }
-                  }}
-                >
-                  <Avatar src={user.avatar} sx={{ width: 28, height: 28, mr: 1.5 }} />
-                  <ListItemText 
-                    primary={user.name} 
-                    primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: 500 }}
-                  />
+              
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                Description
+              </Typography>
+              <Typography variant="body2" paragraph>
+                {currentTask.description}
+              </Typography>
+              
+              <Divider sx={{ my: 2 }} />
+              
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                Suggested Assignees
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                {currentTask.assignableUsers?.map((user) => (
                   <Chip
-                    icon={<PercentIcon sx={{ fontSize: '0.9rem !important', ml: 0.5 }} />}
-                    label={`${user.match_percentage || 0}%`}
-                    size="small"
+                    key={user._id}
+                    avatar={<Avatar src={user.avatar} />}
+                    label={`${user.name} (${user.match_percentage}% match)`}
                     variant="outlined"
                     sx={{
-                      fontSize: '0.75rem',
-                      height: 24,
-                      borderRadius: '6px',
-                      borderColor: selectedTask.assignee?._id === user._id ? '#4CAF50' : 'rgba(0,0,0,0.1)',
-                      backgroundColor: selectedTask.assignee?._id === user._id ? 'rgba(76, 175, 80, 0.05)' : 'transparent',
-                      color: selectedTask.assignee?._id === user._id ? '#4CAF50' : 'inherit',
-                      '& .MuiChip-icon': {
-                        color: selectedTask.assignee?._id === user._id ? '#4CAF50' : 'inherit'
-                      }
+                      borderColor: selectedUsers[currentTask.title] === user._id ? '#2196F3' : 'rgba(0,0,0,0.1)',
+                      backgroundColor: selectedUsers[currentTask.title] === user._id ? 'rgba(33,150,243,0.1)' : 'transparent',
                     }}
                   />
-                </ListItem>
-              ))}
-            </List>
-          ) : (
-            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.9rem', py: 2 }}>
-              No suitable users available for assignment.
-            </Typography>
+                ))}
+              </Box>
+              
+              <Divider sx={{ my: 2 }} />
+              
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Priority
+                  </Typography>
+                  <Typography variant="body2">
+                    {currentTask.priority || 'Low'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Story Points
+                  </Typography>
+                  <Typography variant="body2">
+                    {currentTask.story_points || '1'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Type
+                  </Typography>
+                  <Typography variant="body2">
+                    {currentTask.type || 'Unknown'}
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="subtitle2" color="text.secondary">
+                    Status
+                  </Typography>
+                  <Typography variant="body2">
+                    To Do
+                  </Typography>
+                </Grid>
+              </Grid>
+            </Box>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: 2, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+        <DialogActions>
+          <Button onClick={() => setDetailDialogOpen(false)}>
+            Close
+          </Button>
           <Button 
-            onClick={handleCloseAssignDialog} 
-            sx={{ 
-              textTransform: 'none', 
-              color: '#546E7A', 
-              fontSize: '0.9rem',
-              '&:hover': { backgroundColor: 'rgba(0,0,0,0.03)' }
+            variant="outlined" 
+            color="primary" 
+            startIcon={<EditIcon />}
+            onClick={() => {
+              setDetailDialogOpen(false);
+              handleEditTask(currentTask);
             }}
           >
-            Close
+            Edit Task
+          </Button>
+          <Button 
+            variant="contained" 
+            color="primary"
+            startIcon={<CheckCircleIcon />}
+            onClick={() => {
+              setDetailDialogOpen(false);
+              handleAcceptTask(currentTask);
+            }}
+            disabled={!selectedUsers[currentTask?.title] && currentTask?.assignableUsers?.length > 1}
+          >
+            Accept Task
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Edit Task Dialog */}
-      <Dialog open={editDialogOpen} onClose={handleCloseEditDialog} maxWidth="sm" fullWidth sx={{ '& .MuiDialog-paper': { borderRadius: '12px' } }}>
-        <DialogTitle sx={{ fontSize: '1.1rem', fontWeight: 600, borderBottom: '1px solid rgba(0,0,0,0.08)', py: 2 }}>
-          Edit Task
+      <Dialog
+        open={editDialogOpen}
+        onClose={() => setEditDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Edit Task Before Adding
         </DialogTitle>
-        <DialogContent sx={{ py: 3 }}>
-          <TextField
-            fullWidth
-            label="Task Title"
-            value={editTask?.title || ''}
-            onChange={(e) => setEditTask({ ...editTask, title: e.target.value })}
-            sx={{ mb: 2, '& .MuiInputLabel-root': { fontSize: '0.9rem' }, '& .MuiInputBase-input': { fontSize: '0.9rem' } }}
-          />
-          <TextField
-            fullWidth
-            label="Description"
-            value={editTask?.description || ''}
-            onChange={(e) => setEditTask({ ...editTask, description: e.target.value })}
-            multiline
-            rows={4}
-            sx={{ mb: 2, '& .MuiInputLabel-root': { fontSize: '0.9rem' }, '& .MuiInputBase-input': { fontSize: '0.9rem' } }}
-          />
-          {editTask?.assignableUsers?.length > 0 && (
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="subtitle2" sx={{ fontSize: '0.9rem', fontWeight: 500, mb: 1.5 }}>
-                Assign to:
+        <DialogContent dividers>
+          {editedTask && (
+            <Box sx={{ pt: 1 }}>
+              <TextField
+                fullWidth
+                label="Title"
+                value={editedTask.title}
+                onChange={(e) => setEditedTask({...editedTask, title: e.target.value})}
+                sx={{ mb: 2 }}
+              />
+              
+              <TextField
+                fullWidth
+                label="Description"
+                value={editedTask.description}
+                onChange={(e) => setEditedTask({...editedTask, description: e.target.value})}
+                multiline
+                rows={3}
+                sx={{ mb: 3 }}
+              />
+              
+              <Divider sx={{ my: 2 }} />
+              
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                Assignee
               </Typography>
-              <List dense sx={{ py: 0 }}>
-                {editTask.assignableUsers.map((user) => (
-                  <ListItem
-                    key={user._id}
-                    button
-                    onClick={() => setEditTask({ ...editTask, assignee: user })}
-                    sx={{
-                      border: editTask.assignee?._id === user._id ? '1px solid #4CAF50' : '1px solid rgba(0,0,0,0.1)',
-                      borderRadius: '8px',
-                      mb: 1,
-                      py: 1,
-                      px: 2,
-                      backgroundColor: editTask.assignee?._id === user._id ? 'rgba(76, 175, 80, 0.05)' : 'transparent',
-                      '&:hover': { backgroundColor: 'rgba(0,0,0,0.03)' }
-                    }}
-                  >
-                    <Avatar src={user.avatar} sx={{ width: 28, height: 28, mr: 1.5 }} />
-                    <ListItemText 
-                      primary={user.name} 
-                      primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: 500 }}
-                    />
-                    <Chip
-                      icon={<PercentIcon sx={{ fontSize: '0.9rem !important', ml: 0.5 }} />}
-                      label={`${user.match_percentage || 0}%`}
-                      size="small"
-                      variant="outlined"
-                      sx={{
-                        fontSize: '0.75rem',
-                        height: 24,
-                        borderRadius: '6px',
-                        borderColor: editTask.assignee?._id === user._id ? '#4CAF50' : 'rgba(0,0,0,0.1)',
-                        backgroundColor: editTask.assignee?._id === user._id ? 'rgba(76, 175, 80, 0.05)' : 'transparent',
-                        color: editTask.assignee?._id === user._id ? '#4CAF50' : 'inherit',
-                        '& .MuiChip-icon': {
-                          color: editTask.assignee?._id === user._id ? '#4CAF50' : 'inherit'
-                        }
-                      }}
-                    />
-                  </ListItem>
-                ))}
-              </List>
+              <FormControl fullWidth sx={{ mb: 3 }}>
+                <InputLabel id="assignee-select-label">Assignee</InputLabel>
+                <Select
+                  labelId="assignee-select-label"
+                  value={editedTask.userId || ''}
+                  onChange={(e) => setEditedTask({...editedTask, userId: e.target.value})}
+                  label="Assignee"
+                >
+                  {editedTask.assignableUsers?.map((user) => (
+                    <MenuItem key={user._id} value={user._id}>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <Avatar src={user.avatar} sx={{ width: 24, height: 24, mr: 1 }} />
+                        {user.name} - {user.match_percentage}% match
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              
+              <Grid container spacing={2} sx={{ mb: 2 }}>
+  {[
+    {
+      label: 'Priority',
+      value: editedTask.priority || 'Low',
+      onChange: (e) => setEditedTask({ ...editedTask, priority: e.target.value }),
+      options: ['High', 'Medium', 'Low'],
+    },
+    {
+      label: 'Story Points',
+      value: editedTask.story_points || 1,
+      onChange: (e) => setEditedTask({ ...editedTask, story_points: e.target.value }),
+      options: [1, 2, 3, 5, 8, 13],
+    },
+    {
+      label: 'Task Type',
+      value: editedTask.type || 'Unknown',
+      onChange: (e) => setEditedTask({ ...editedTask, type: e.target.value }),
+      options: ['Bug', 'Feature', 'Task', 'Story', 'Unknown'],
+    },
+  ].map((field, index) => (
+    <Grid item xs={12} sm={4} key={index}>
+      <FormControl fullWidth>
+        <InputLabel>{field.label}</InputLabel>
+        <Select
+          value={field.value}
+          onChange={field.onChange}
+          label={field.label}
+        >
+          {field.options.map((option) => (
+            <MenuItem key={option} value={option}>
+              {option}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+    </Grid>
+  ))}
+</Grid>
+
             </Box>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: 2, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
-          <Button 
-            onClick={handleCloseEditDialog} 
-            sx={{ 
-              textTransform: 'none', 
-              color: '#546E7A', 
-              fontSize: '0.9rem',
-              '&:hover': { backgroundColor: 'rgba(0,0,0,0.03)' }
-            }}
-          >
+        <DialogActions>
+          <Button onClick={() => setEditDialogOpen(false)}>
             Cancel
           </Button>
           <Button 
-            onClick={handleSaveEdit} 
             variant="contained" 
-            sx={{ 
-              borderRadius: '8px', 
-              background: '#2196F3', 
-              textTransform: 'none', 
-              px: 3, 
-              py: 0.8, 
-              fontSize: '0.9rem',
-              '&:hover': { background: '#1E88E5' }
-            }}
+            color="primary" 
+            onClick={handleSaveEditedTask}
+            disabled={!editedTask?.userId && editedTask?.assignableUsers?.length > 1}
           >
-            Save
+            Save & Add Task
           </Button>
         </DialogActions>
       </Dialog>
+    
     </Paper>
   );
-};
-
+}
 export default AISidebar;

@@ -1,4 +1,4 @@
-import { useAnimation } from 'framer-motion';
+import { useAnimation, motion } from 'framer-motion';
 import { Button, Typography, Box } from '@mui/material';
 import { Link } from 'react-router-dom';
 import Page from '../components/Page';
@@ -291,7 +291,7 @@ export default function Sad404() {
                         <motion.div variants={buttonVariants} whileHover="hover" style={{ display: 'inline-block' }}>
                             <Button
                                 component={Link}
-                                to="/"
+                                to="/1"
                                 variant="contained"
                                 size="large"
                                 sx={{
